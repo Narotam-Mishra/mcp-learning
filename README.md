@@ -1239,4 +1239,929 @@ This is easier to audit, rotate, and secure compared to 60 separate implementati
 
 ## 03. MCP Architecture (01:17:08)
 
+This tutorial explains the **Model Context Protocol (MCP)** architecture from first principles, breaking down how AI chatbots (hosts) communicate with external tools (servers) through a standardized protocol.
+
+---
+
+## 📊 Flow Diagram: Basic MCP Architecture
+
+```
+┌─────────┐    ┌──────────┐    ┌──────────┐
+│  User   │───▶│  Host    │───▶│  Server  │
+│(Question)│    │(AI Chat) │    │  (Tool)  │
+└─────────┘    └──────────┘    └──────────┘
+                     │               │
+                     ▼               ▼
+              ┌─────────────┐ ┌─────────────┐
+              │   LLM       │ │  GitHub     │
+              │(Processing) │ │  Slack      │
+              └─────────────┘ │  Google Drive│
+                              └─────────────┘
+```
+
+---
+
+## 🔑 Key Components
+
+### 1. **Host** (AI Chatbot)
+- The AI application users interact with
+- Examples: Claude Desktop, Cursor IDE, Custom chatbots
+- Connected to an LLM (OpenAI, Anthropic, Gemini, etc.)
+- **Responsibility**: Receive user queries and coordinate responses
+
+### 2. **Server** (Tool Provider)
+- Specialized service that executes specific tasks
+- Examples:
+  - **GitHub Server**: Manage repositories, commits, issues
+  - **Slack Server**: Read/write channel messages
+  - **Google Drive Server**: Manipulate files and folders
+- **Responsibility**: Execute specific operations and return results
+
+### 3. **Client** (Communication Bridge)
+- The middle layer between Host and Server
+- **Key Feature**: Speaks the same MCP language as servers
+- **Responsibility**: 
+  - Translate high-level requests to MCP-compatible format
+  - Translate MCP responses back to host-understandable format
+
+---
+
+## 📊 Flow Diagram: Complete Architecture with Client
+
+```
+┌──────┐    ┌──────────┐    ┌────────────┐    ┌──────────┐
+│ User │───▶│  Host    │───▶│   Client   │───▶│  Server  │
+│      │    │(AI Chat) │    │ (MCP Lang) │    │  (Tool)  │
+└──────┘    └──────────┘    └────────────┘    └──────────┘
+                               │                      │
+                               ▼                      ▼
+                        ┌─────────────┐      ┌─────────────┐
+                        │ Translates  │      │  Executes   │
+                        │ Requests    │      │  Operations │
+                        └─────────────┘      └─────────────┘
+```
+
+---
+
+## 🔄 One-to-One Relationship
+
+**Important:** Each client connects to exactly ONE server at a time.
+
+```
+Host ──┬── Client 1 ── GitHub Server
+       ├── Client 2 ── Slack Server
+       └── Client 3 ── Drive Server
+```
+
+### 📊 Multi-Server Architecture Flow
+```
+                    ┌──────────────┐
+                    │    Host      │
+                    │  (AI Chat)   │
+                    └──────┬───────┘
+                           │
+            ┌──────────────┼──────────────┐
+            │              │              │
+            ▼              ▼              ▼
+    ┌─────────────┐ ┌─────────────┐ ┌─────────────┐
+    │  Client 1   │ │  Client 2   │ │  Client 3   │
+    │  (GitHub)   │ │  (Slack)    │ │  (Drive)    │
+    └──────┬──────┘ └──────┬──────┘ └──────┬──────┘
+           │               │               │
+           ▼               ▼               ▼
+    ┌─────────────┐ ┌─────────────┐ ┌─────────────┐
+    │   GitHub    │ │    Slack    │ │    Drive    │
+    │   Server    │ │   Server    │ │   Server    │
+    └─────────────┘ └─────────────┘ └─────────────┘
+```
+
+---
+
+## 📱 Real-World Analogy: Phone/SIM/Network
+
+| MCP Component | Analogy | Role |
+|---------------|---------|------|
+| **Host** | 📱 Phone | The device you interact with |
+| **Client** | 📇 SIM Card | Translates communication |
+| **Server** | 📶 Network (Airtel/Jio) | Provides the actual service |
+
+**Key Point:** Like multiple SIM cards for different networks, you need separate clients for each server you want to connect to.
+
+---
+
+## 🎁 MCP Primitives (Server Offerings)
+
+Servers provide three types of offerings to hosts:
+
+### 1. **Tools** (Actions)
+- **Dynamic operations** that execute tasks
+- **Examples**:
+  - GitHub: Create issue, push code, get commits
+  - Google Drive: Search files, create new files
+  - Slack: Send message, read channel
+
+**Flow for Tools:**
+```
+Host Request → Client → Server (Executes Tool) → Client → Host
+```
+
+### 2. **Resources** (Static Data)
+- **Static documents** that can be read
+- **Examples**:
+  - GitHub: README files
+  - Database: Schema definitions
+  - Drive: File contents
+
+**Flow for Resources:**
+```
+Host Request → Client → Server (Fetches Resource) → Client → Host
+```
+
+### 3. **Prompts** (Guidance Templates)
+- **Pre-defined templates** that guide AI behavior
+- **Purpose**: Help AI create better, more structured requests
+- **Example**: Issue creation template with required fields
+
+**Prompt Example Structure:**
+```
+Name: Issue Report Prompt
+Description: Write clear, detailed GitHub issues
+Instructions:
+  - Title: [Clear summary]
+  - Steps to Reproduce: [Step-by-step]
+  - Expected Behavior: [What should happen]
+  - Actual Behavior: [What actually happens]
+  - Environment: [OS, Browser, etc.]
+```
+
+---
+
+## 📊 Flow Diagram: Complete MCP Architecture
+
+```
+                    ┌─────────────────────────────────────┐
+                    │            HOST                    │
+                    │      (AI Chatbot + LLM)           │
+                    └──────────────┬──────────────────────┘
+                                   │
+                    ┌──────────────┴──────────────┐
+                    │                              │
+                    ▼                              ▼
+        ┌──────────────────────┐     ┌──────────────────────┐
+        │     CLIENT 1         │     │     CLIENT 2         │
+        │  (MCP Compatible)    │     │  (MCP Compatible)    │
+        └──────────┬───────────┘     └──────────┬───────────┘
+                   │                              │
+                   ▼                              ▼
+        ┌──────────────────────┐     ┌──────────────────────┐
+        │    SERVER 1          │     │    SERVER 2          │
+        │   (GitHub)           │     │   (Slack)            │
+        ├──────────────────────┤     ├──────────────────────┤
+        │ Primitives:          │     │ Primitives:          │
+        │  • Tools             │     │  • Tools             │
+        │  • Resources         │     │  • Resources         │
+        │  • Prompts           │     │  • Prompts           │
+        └──────────────────────┘     └──────────────────────┘
+```
+
+---
+
+## 📋 Standard Operations (Functions)
+
+### For **Tools**:
+| Operation | Purpose | Example |
+|-----------|---------|---------|
+| **tools/list** | Get all available tools | "What can you do?" |
+| **tools/call** | Execute specific tool | "Create an issue" |
+
+### For **Resources**:
+| Operation | Purpose | Example |
+|-----------|---------|---------|
+| **resources/list** | List available resources | "What files can I read?" |
+| **resources/read** | Read specific resource | "Show README file" |
+| **resources/subscribe** | Get updates on changes | "Notify when file changes" |
+| **resources/unsubscribe** | Stop receiving updates | "Stop notifications" |
+
+### For **Prompts**:
+| Operation | Purpose | Example |
+|-----------|---------|---------|
+| **prompts/list** | List available prompts | "What templates exist?" |
+| **prompts/get** | Get specific prompt template | "Get issue template" |
+
+---
+
+## 💻 Basic Code Examples
+
+### 1. **Basic Server Initialization**
+```python
+# Pseudocode example of MCP server setup
+class GitHubServer:
+    def __init__(self):
+        self.tools = {
+            'create_issue': self.create_issue,
+            'get_commits': self.get_commits,
+            'push_code': self.push_code
+        }
+        self.resources = {
+            'readme': self.get_readme,
+            'schema': self.get_schema
+        }
+        self.prompts = {
+            'issue_report': self.issue_prompt_template
+        }
+```
+
+### 2. **Tool Implementation Example**
+```python
+# Example: Creating a GitHub issue
+def create_issue(title, body, repo_name):
+    """
+    Tool implementation for creating GitHub issues
+    """
+    # Connect to GitHub API
+    # Create issue with title and body
+    # Return issue URL and status
+    return {
+        'status': 'success',
+        'issue_url': 'https://github.com/repo/issues/1',
+        'issue_number': 1
+    }
+```
+
+### 3. **Resource Implementation Example**
+```python
+# Example: Reading README file
+def get_readme(repo_name):
+    """
+    Resource implementation for fetching README
+    """
+    # Fetch README content from GitHub
+    # Return file content
+    return {
+        'content': '# Project Name\n\nDescription here...',
+        'format': 'markdown'
+    }
+```
+
+### 4. **Prompt Template Example**
+```python
+# Example: Issue report prompt template
+issue_prompt = {
+    'name': 'issue_report',
+    'description': 'Create well-structured GitHub issues',
+    'instructions': '''
+        When creating a GitHub issue, include:
+        1. Clear Title summarizing the problem
+        2. Steps to Reproduce (step-by-step)
+        3. Expected Behavior (what should happen)
+        4. Actual Behavior (what actually happens)
+        5. Environment (OS, Browser, Version)
+    ''',
+    'template': '''
+        Title: [summary]
+        Steps to Reproduce:
+        1. [step 1]
+        2. [step 2]
+        
+        Expected: [what should happen]
+        Actual: [what happens now]
+        Environment: [your setup]
+    '''
+}
+```
+
+### 5. **Client-Host Communication**
+```python
+# Example: Client processing request
+class MCPClient:
+    def process_request(self, host_request):
+        # 1. Translate host request to MCP format
+        mcp_request = self.to_mcp_format(host_request)
+        
+        # 2. Send to server
+        response = self.send_to_server(mcp_request)
+        
+        # 3. Translate response back to host format
+        host_response = self.to_host_format(response)
+        
+        return host_response
+    
+    def to_mcp_format(self, request):
+        # Convert host-specific request to MCP standard
+        return {
+            'method': request['action'],
+            'params': request['parameters']
+        }
+```
+
+---
+
+## ✨ Benefits of This Architecture
+
+### 1. **Decoupling**
+- Each server operates independently
+- Failure in one doesn't affect others
+- Example: GitHub communication fails, but Slack still works
+
+### 2. **Scalability**
+- Add unlimited servers (each with its own client)
+- Example: Host + 100 servers = 100 clients
+- Parallel task execution possible
+
+### 3. **Separation of Concerns**
+- Each component has specific responsibility
+- Cleaner code organization
+- Easier maintenance
+
+---
+
+## 📝 Important Pointers to Remember
+
+1. **Host** = AI Chatbot (user-facing interface)
+2. **Client** = MCP translator (one per server)
+3. **Server** = External tool provider (GitHub, Slack, etc.)
+4. **One-to-One Relationship**: One client connects to exactly one server
+5. **Three Primitives**: Tools (actions), Resources (static data), Prompts (templates)
+6. **Standard Operations**: list, call/read, subscribe/unsubscribe
+7. **Benefits**: Decoupled architecture, scalability, parallel execution
+8. **Real-World Analogy**: Phone (Host) → SIM (Client) → Network (Server)
+
+---
+
+## 🎯 Complete Flow: User Request to Response
+
+```
+Step 1: User asks "Any new commits on GitHub?"
+        ↓
+Step 2: Host (AI Chatbot) receives the prompt
+        ↓
+Step 3: Host's LLM checks if it can answer (it can't)
+        ↓
+Step 4: LLM tells host to ask GitHub server
+        ↓
+Step 5: Host → Client → Server (MCP format)
+        ↓
+Step 6: GitHub Server executes "get_commits" tool
+        ↓
+Step 7: Server → Client → Host (MCP format)
+        ↓
+Step 8: Host's LLM formats the response
+        ↓
+Step 9: Host displays answer to user
+```
+
+---
+
+## 🔄 Visual Summary: Complete Process Flow
+
+```
+User Input
+    │
+    ▼
+┌─────────────────────────────────────┐
+│ Host (AI Chatbot)                   │
+│  ├─ Receives user query             │
+│  ├─ LLM processes                   │
+│  └─ Identifies need for server      │
+└──────────────┬──────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────┐
+│ Client (MCP Translator)             │
+│  ├─ Translates to MCP format        │
+│  └─ Sends to appropriate server     │
+└──────────────┬──────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────┐
+│ Server (Tool Provider)              │
+│  ├─ Receives MCP request            │
+│  ├─ Executes requested operation    │
+│  │  (Tool/Resource/Prompt)          │
+│  └─ Generates MCP response          │
+└──────────────┬──────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────┐
+│ Response Flow Back                  │
+│  ├─ Server → Client (MCP format)    │
+│  ├─ Client → Host (Translated)      │
+│  └─ Host → User (Final answer)      │
+└─────────────────────────────────────┘
+```
+
+This architecture enables AI chatbots to seamlessly integrate with any external tool or service, creating a powerful, extensible ecosystem for AI applications.
+
+---
+
+## Complete MCP Architecture (All Parts)
+
+This part covers the **entire transcript**, including the first part (architecture basics) and the second part (Data Layer & Transport Layer). All concepts are explained in simple words with flow diagrams, key pointers, and practical code examples.
+
+---
+
+## 1. Core Architecture Overview
+
+### 1.1 Three Main Components
+
+| Component | Role | Example |
+|-----------|------|---------|
+| **Host** | AI Chatbot that users interact with | Claude Desktop, Cursor IDE, custom chatbot |
+| **Client** | MCP translator (one per server) | Handles communication in MCP language |
+| **Server** | External tool that provides functionality | GitHub, Slack, Google Drive, File System |
+
+### 1.2 Basic Flow Diagram (Simplest)
+
+```
+User → Host (AI Chatbot) → Server (Tool)
+        │                     │
+        ▼                     ▼
+      LLM              Executes action
+```
+
+### 1.3 Complete Architecture with Client
+
+```
+                    ┌─────────────────────────┐
+                    │         HOST            │
+                    │   (AI Chatbot + LLM)    │
+                    └───────────┬─────────────┘
+                                │
+                    ┌───────────┴────────────┐
+                    │                        │
+                    ▼                        ▼
+         ┌──────────────────────┐  ┌──────────────────────┐
+         │     CLIENT 1         │  │     CLIENT 2         │
+         │  (MCP Translator)    │  │  (MCP Translator)    │
+         └──────────┬───────────┘  └──────────┬───────────┘
+                    │                          │
+                    ▼                          ▼
+         ┌──────────────────────┐  ┌──────────────────────┐
+         │    SERVER 1          │  │    SERVER 2          │
+         │   (GitHub)           │  │   (Slack)            │
+         └──────────────────────┘  └──────────────────────┘
+```
+
+### 1.4 One-to-One Relationship
+
+```
+Host ── Client 1 ── GitHub Server
+Host ── Client 2 ── Slack Server
+Host ── Client 3 ── Google Drive Server
+```
+
+**Key Point:** Each client connects to **exactly one** server. Multiple servers require multiple clients.
+
+### 1.5 Real-World Analogy
+
+| MCP | Analogy |
+|-----|---------|
+| Host | 📱 Phone |
+| Client | 📇 SIM Card |
+| Server | 📶 Network (Airtel/Jio) |
+
+Just as you need separate SIM cards for different networks, you need separate clients for different servers.
+
+---
+
+## 2. MCP Primitives (What Servers Offer)
+
+Servers provide **three types** of offerings to the host:
+
+### 2.1 Tools (Actions)
+- **Dynamic operations** that execute tasks
+- **Examples:**
+  - GitHub: `create_issue`, `get_commits`, `push_code`
+  - Google Drive: `search_files`, `create_file`
+  - Slack: `send_message`, `read_channel`
+
+**Flow:**
+```
+Host → Client → Server (executes tool) → Client → Host
+```
+
+### 2.2 Resources (Static Data)
+- **Read-only documents** that the host can fetch
+- **Examples:**
+  - GitHub: README files
+  - Database: schema definitions
+  - Drive: file contents
+
+**Flow:**
+```
+Host → Client → Server (fetches resource) → Client → Host
+```
+
+### 2.3 Prompts (Guidance Templates)
+- **Pre‑defined templates** that guide the AI to produce better‑structured requests
+- **Example:** Issue report template with fields: Title, Steps to Reproduce, Expected/Actual Behavior, Environment.
+
+**Usage:**
+1. Host’s LLM reads the prompt template.
+2. LLM generates a request following the template structure.
+3. Server receives a well‑formatted request.
+
+**Prompt Template Example:**
+```
+Name: issue_report
+Description: Write clear GitHub issues
+Instructions:
+  - Title: [summary]
+  - Steps to Reproduce: [1. …, 2. …]
+  - Expected: [what should happen]
+  - Actual: [what actually happens]
+  - Environment: [OS, browser, version]
+```
+
+---
+
+## 3. Standard Operations (Functions)
+
+| Primitive | Operations | Purpose |
+|-----------|------------|---------|
+| **Tools** | `tools/list` | List all available tools |
+|           | `tools/call` | Execute a specific tool with arguments |
+| **Resources** | `resources/list` | List all static resources |
+|               | `resources/read` | Read a specific resource |
+|               | `resources/subscribe` | Get notifications on changes |
+|               | `resources/unsubscribe` | Stop notifications |
+| **Prompts** | `prompts/list` | List all prompt templates |
+|             | `prompts/get` | Get a specific prompt template |
+
+---
+
+## 4. Data Layer: JSON‑RPC 2.0
+
+### 4.1 What is JSON‑RPC?
+- **JSON‑RPC** = Remote Procedure Call using JSON.
+- It allows a program to execute a function on **another computer** as if it were local.
+- The data layer of MCP is built on **JSON‑RPC 2.0**.
+
+### 4.2 JSON‑RPC Message Structure
+
+**Request Example:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "add",
+  "params": [2, 3],
+  "id": 1
+}
+```
+
+**Response Example:**
+```json
+{
+  "jsonrpc": "2.0",
+  "result": 5,
+  "id": 1
+}
+```
+
+**Error Response Example:**
+```json
+{
+  "jsonrpc": "2.0",
+  "error": {
+    "code": -32601,
+    "message": "Method not found"
+  },
+  "id": 1
+}
+```
+
+### 4.3 How MCP Uses JSON‑RPC
+
+**Example: Listing Tools**
+- **Request (Client → Server):**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "tools/list",
+  "id": 1
+}
+```
+- **Response (Server → Client):**
+```json
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "tools": [
+      { "name": "list_issues" },
+      { "name": "list_pulls" }
+    ]
+  },
+  "id": 1
+}
+```
+
+**Example: Calling a Tool**
+- **Request:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "list_issues",
+    "arguments": { "repo": "my-repo" }
+  },
+  "id": 2
+}
+```
+- **Response:**
+```json
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "issues": [
+      { "title": "Bug in login", "state": "open" }
+    ]
+  },
+  "id": 2
+}
+```
+
+### 4.4 Advanced Features of JSON‑RPC
+
+#### a) Batching
+Send multiple requests in one go:
+```json
+[
+  { "jsonrpc": "2.0", "method": "list_issues", "id": 1 },
+  { "jsonrpc": "2.0", "method": "list_pulls",  "id": 2 }
+]
+```
+Server responds with an array of responses.
+
+#### b) Notifications
+- A **notification** has no `id` and does not expect a response.
+- Used for fire‑and‑forget messages (e.g., resource change alerts).
+
+**Example Notification (Server → Client):**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "resource/updated",
+  "params": {
+    "uri": "file:///path/to/doc",
+    "updated_by": "user123"
+  }
+}
+```
+
+### 4.5 Why JSON‑RPC Instead of REST?
+
+| Reason | Explanation |
+|--------|-------------|
+| **Lightweight** | No heavy HTTP headers; simple JSON messages |
+| **Bidirectional** | Both client and server can initiate requests (REST is one‑way) |
+| **Transport‑agnostic** | Works over STDIO, HTTP, WebSockets, custom transports |
+| **Batching** | Send multiple requests in a single payload |
+| **Notifications** | Fire‑and‑forget messages without response requirement |
+
+---
+
+## 5. Transport Layer
+
+The **transport layer** is the mechanism that physically moves JSON‑RPC messages between client and server.
+
+### 5.1 Two Types of Servers
+
+| Type | Description | Transport Used |
+|------|-------------|----------------|
+| **Local Server** | Runs on the same machine as the host | STDIO |
+| **Remote Server** | Runs on a different machine (network/Internet) | HTTP + SSE |
+
+### 5.2 Local Servers & STDIO Transport
+
+**STDIO = Standard Input/Output**
+
+#### How It Works (3 Steps):
+1. **Host launches the server as a sub‑process** on the same machine.
+2. The host controls the server’s STDIN and STDOUT streams.
+3. Messages are sent via STDIN and responses come back via STDOUT.
+
+**Demo Analogy:**
+- Terminal = Host
+- Python script (`hello.py`) = Server
+- Running `python3 hello.py` launches the server.
+- Typing input (`Nitesh`) sends data via STDIN.
+- The script processes and prints output (`Hello Nitesh`) to STDOUT.
+
+**Code Example (hello.py):**
+```python
+name = input("Enter your name: ")
+print(f"Hello {name}")
+```
+
+**MCP Communication Flow (STDIO):**
+```
+Host (Claude)  →  writes JSON‑RPC request to server's STDIN
+Server (File System)  →  reads from STDIN, processes, writes response to STDOUT
+Host  →  reads response from STDOUT
+```
+
+#### Benefits of STDIO Transport:
+- **Fast** – same machine communication
+- **Secure** – no network ports exposed
+- **Simple** – all programming languages support STDIO
+
+### 5.3 Remote Servers & HTTP/SSE
+
+- **Remote servers** run on a different machine (cloud, data center).
+- Transport uses **HTTP** with **Server‑Sent Events (SSE)** for streaming.
+- Communication goes over the network, so it’s slower and less secure than STDIO but allows global access.
+
+**Example:** GitHub MCP server running in the cloud.
+
+---
+
+## 6. Complete End‑to‑End Flow
+
+### Step‑by‑Step Example: User asks "Any new commits on GitHub?"
+
+```
+Step 1: User types prompt.
+        ↓
+Step 2: Host (AI Chatbot) receives prompt.
+        ↓
+Step 3: Host's LLM determines it cannot answer directly.
+        ↓
+Step 4: LLM tells host to ask the GitHub server.
+        ↓
+Step 5: Host passes a high‑level request to its Client.
+        ↓
+Step 6: Client translates request into JSON‑RPC format (e.g., tools/call with method "get_commits").
+        ↓
+Step 7: Client sends JSON‑RPC message over transport (STDIO or HTTP).
+        ↓
+Step 8: GitHub Server receives, executes, and returns JSON‑RPC response.
+        ↓
+Step 9: Client translates response back to host format.
+        ↓
+Step 10: Host's LLM formats a human‑readable answer.
+        ↓
+Step 11: Host displays answer to the user.
+```
+
+---
+
+## 7. Benefits of the Complete Architecture
+
+| Benefit | Description |
+|---------|-------------|
+| **Decoupling** | Each server operates independently; failure in one does not affect others. |
+| **Scalability** | Add unlimited servers by adding corresponding clients. |
+| **Separation of Concerns** | Each component has a single responsibility. |
+| **Parallel Execution** | Tasks can be executed concurrently across multiple servers. |
+| **Standardized Language** | JSON‑RPC ensures consistent communication. |
+| **Flexible Transport** | Choose STDIO for local, HTTP/SSE for remote. |
+
+---
+
+## 8. Important Pointers to Remember
+
+1. **Host** = AI chatbot (user‑facing).
+2. **Client** = MCP translator (one per server).
+3. **Server** = External tool (GitHub, Slack, etc.).
+4. **One‑to‑one** relationship: one client ↔ one server.
+5. **Three primitives**: Tools (actions), Resources (static data), Prompts (templates).
+6. **Standard operations**: list, call/read, subscribe/unsubscribe.
+7. **Data layer** = JSON‑RPC 2.0 (lightweight, bidirectional, transport‑agnostic).
+8. **Transport layer** = STDIO (local) or HTTP/SSE (remote).
+9. **Why JSON‑RPC?** Lightweight, bidirectional, batching, notifications, transport‑agnostic.
+10. **STDIO benefits**: fast, secure, simple.
+
+---
+
+## 9. Summary of Flow Diagrams
+
+### Full Architecture with Primitives & Transport
+
+```
+                    ┌──────────────────────────────────────────┐
+                    │                HOST                     │
+                    │         (AI Chatbot + LLM)              │
+                    └──────────────┬───────────────────────────┘
+                                   │
+                    ┌──────────────┴────────────────┐
+                    │                               │
+                    ▼                               ▼
+         ┌─────────────────────┐       ┌─────────────────────┐
+         │       CLIENT 1      │       │       CLIENT 2      │
+         │   (MCP Translator)  │       │   (MCP Translator)  │
+         └──────────┬──────────┘       └──────────┬──────────┘
+                    │                              │
+                    ▼                              ▼
+         ┌─────────────────────┐       ┌─────────────────────┐
+         │      SERVER 1       │       │      SERVER 2       │
+         │     (Local File)    │       │    (GitHub Remote)  │
+         ├─────────────────────┤       ├─────────────────────┤
+         │ Transport: STDIO    │       │ Transport: HTTP/SSE │
+         │ Primitives:         │       │ Primitives:         │
+         │  • Tools            │       │  • Tools            │
+         │  • Resources        │       │  • Resources        │
+         │  • Prompts          │       │  • Prompts          │
+         └─────────────────────┘       └─────────────────────┘
+```
+
+### Communication Flow
+
+```
+[User] → [Host] → [Client] → [Transport] → [Server]
+              ↑                                 ↓
+              └───────── [Response] ────────────┘
+```
+
+---
+
+## 10. Basic Code Examples (Conceptual)
+
+### 10.1 JSON‑RPC Request in Python (Client‑side)
+```python
+import json
+
+# Build a JSON-RPC request
+request = {
+    "jsonrpc": "2.0",
+    "method": "tools/call",
+    "params": {
+        "name": "list_issues",
+        "arguments": {"repo": "my-repo"}
+    },
+    "id": 1
+}
+
+# Send via STDIN (if local) or HTTP POST (if remote)
+message = json.dumps(request)
+print(message)  # to STDOUT
+```
+
+### 10.2 JSON‑RPC Response Handling (Server‑side)
+```python
+import json
+import sys
+
+# Read request from STDIN
+line = sys.stdin.readline()
+request = json.loads(line)
+
+method = request.get("method")
+if method == "tools/list":
+    response = {
+        "jsonrpc": "2.0",
+        "result": {"tools": [{"name": "list_issues"}, {"name": "list_pulls"}]},
+        "id": request.get("id")
+    }
+    print(json.dumps(response))  # write to STDOUT
+```
+
+### 10.3 Tool Implementation Example (GitHub)
+```python
+def create_issue(title, body, repo):
+    # GitHub API call
+    response = requests.post(
+        f"https://api.github.com/repos/{repo}/issues",
+        json={"title": title, "body": body}
+    )
+    return response.json()
+```
+
+### 10.4 STDIO Communication in MCP (Local Server)
+```python
+# Host (Claude) launches server as subprocess
+import subprocess
+
+server_process = subprocess.Popen(
+    ["python3", "my_mcp_server.py"],
+    stdin=subprocess.PIPE,
+    stdout=subprocess.PIPE,
+    text=True
+)
+
+# Send JSON-RPC request to server's STDIN
+request = '{"jsonrpc":"2.0","method":"tools/list","id":1}\n'
+server_process.stdin.write(request)
+server_process.stdin.flush()
+
+# Read response from server's STDOUT
+response = server_process.stdout.readline()
+print(response)  # {"jsonrpc":"2.0","result":{...},"id":1}
+```
+
+---
+
+## 11. Conclusion
+
+The **Model Context Protocol (MCP)** provides a standardized way for AI chatbots to interact with external tools and services. Its architecture is built on three pillars:
+
+1. **Host‑Client‑Server** model with one‑to‑one client‑server relationships.
+2. **Primitives** (Tools, Resources, Prompts) that define what servers can offer.
+3. **Data & Transport Layers** using JSON‑RPC 2.0 over STDIO (local) or HTTP/SSE (remote).
+
+This design ensures **decoupling**, **scalability**, and **flexibility**, making it easy to integrate any number of external services into an AI application.
+
+---
+
+
 summaries this MCP tutorial transcript in simple words with all detail along with flow diagrams, also make note of all important pointers and explain each important concepts with basic code examples
