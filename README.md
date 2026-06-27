@@ -4857,4 +4857,926 @@ These features make MCP **robust, reliable, and user-friendly** - ensuring that 
 
 ## 05. Model Context Protocol | The How | How to connect MCP Servers to Claude Desktop (46:16)
 
+This tutorial covers the **practical implementation** of MCP, starting with:
+- **The overall strategy** for learning MCP hands-on
+- **Connectors** - the new way to connect MCP servers
+- **Four different MCP server integrations** with Claude Desktop
+- **Local servers:** Filesystem & Manim
+- **Remote servers:** Google Drive & Twitter/X
+
+---
+
+## 📖 Table of Contents
+1. [The Three-Part "How" Strategy](#1-the-three-part-how-strategy)
+2. [Connectors vs JSON Configuration](#2-connectors-vs-json-configuration)
+3. [Setting Up Claude Desktop](#3-setting-up-claude-desktop)
+4. [Demo 1: Filesystem Server (Local + Connector)](#4-demo-1-filesystem-server-local--connector)
+5. [Demo 2: Manim Server (Local + JSON Config)](#5-demo-2-manim-server-local--json-config)
+6. [Demo 3: Google Drive Server (Remote + Connector)](#6-demo-3-google-drive-server-remote--connector)
+7. [Flow Diagrams](#7-flow-diagrams)
+8. [Code Examples](#8-code-examples)
+9. [Key Pointers Summary](#9-key-pointers-summary)
+10. [Quick Reference](#10-quick-reference)
+
+---
+
+## 1. The Three-Part "How" Strategy
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    "HOW" SERIES STRUCTURE                              │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │                 VIDEO 1 (Current Video)                        │  │
+│   │                                                                 │  │
+│   │   ✅ Use PRE-MADE Client (Claude Desktop)                      │  │
+│   │   ✅ Use PRE-MADE Servers (Filesystem, Manim, Drive, Twitter) │  │
+│   │   ❌ No custom code writing                                    │  │
+│   │                                                                 │  │
+│   │   Goal: Experience MCP without technical complexity           │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │                 VIDEO 2 (Upcoming)                              │  │
+│   │                                                                 │  │
+│   │   ✅ Use PRE-MADE Client (Claude Desktop)                      │  │
+│   │   ✅ Build CUSTOM Server                                        │  │
+│   │   ❌ No client-side code                                       │  │
+│   │                                                                 │  │
+│   │   Goal: Learn how to build MCP servers                        │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │                 VIDEO 3 (Future)                                │  │
+│   │                                                                 │  │
+│   │   ✅ Build CUSTOM Client                                        │  │
+│   │   ✅ Build CUSTOM Server                                        │  │
+│   │                                                                 │  │
+│   │   Goal: Build MCP from scratch                                 │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Why This Approach?
+
+| Approach | Benefit |
+|----------|---------|
+| **Start with pre-made tools** | Understand concepts without coding complexity |
+| **Build custom servers** | Learn server implementation |
+| **Build custom clients** | Full understanding of MCP internals |
+
+---
+
+## 2. Connectors vs JSON Configuration
+
+### Two Ways to Connect MCP Servers
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    TWO CONNECTION METHODS                              │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   METHOD 1: CONNECTORS (New)                    METHOD 2: JSON CONFIG  │
+│   ─────────────────────────                    ────────────────────    │
+│                                                                         │
+│   • One-click connection                     • Manual configuration    │
+│   • Built by Anthropic                       • Edit config file        │
+│   • No technical knowledge needed            • Technical knowledge     │
+│   • For popular SaaS tools                   • For custom servers      │
+│   • Curated & managed                        • Open to anyone          │
+│   • More secure & consistent                 • More flexible           │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### What are Connectors?
+
+> A connector is a built-in feature that links Claude to MCP servers automatically without the need for manual setup and configuration.
+
+**Key Points:**
+1. **One-click** integration
+2. **No manual JSON editing** required
+3. **Built by Anthropic** - handled by their team
+4. **Curated** - only for popular SaaS tools
+5. **More secure** - authentication handled behind the scenes
+
+### Example: Connectors in Action
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    HOW CONNECTORS WORK                                 │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   Claude Desktop                                                        │
+│         │                                                               │
+│         ▼                                                               │
+│   Click "Connect Tools" Button                                         │
+│         │                                                               │
+│         ▼                                                               │
+│   Select "Google Drive" from list                                      │
+│         │                                                               │
+│         ▼                                                               │
+│   Google Sign-in popup appears                                         │
+│         │                                                               │
+│         ▼                                                               │
+│   ✅ Connected! No code written!                                       │
+│                                                                         │
+│   Behind the scenes:                                                    │
+│   • Authentication handled automatically                              │
+│   • MCP server configured automatically                               │
+│   • All security handled by Anthropic                                 │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Why Not Use Connectors for Everything?
+
+| Reason | Explanation |
+|--------|-------------|
+| **Connectors are curated** | Anthropic can only build connectors for popular services (Google Drive, Notion, Slack) |
+| **Not scalable** | Thousands of MCP servers exist; Anthropic can't write connectors for all |
+| **MCP is an open standard** | Anyone should be able to build servers and use them without waiting for Anthropic |
+| **Centralization risk** | If only Anthropic controls connectors, they control the entire ecosystem |
+
+### The Solution: Both Options Available
+
+| Use Case | Best Method |
+|----------|-------------|
+| **Popular SaaS tools** (Drive, Gmail, Slack) | Connectors (one-click) |
+| **Custom/Personal MCP servers** | JSON Config |
+| **Company-specific MCP servers** | JSON Config |
+
+---
+
+## 3. Setting Up Claude Desktop
+
+### Step 1: Download Claude Desktop
+
+```
+1. Google search: "Claude Desktop download"
+2. Go to official Anthropic page
+3. Download for your OS (Mac/Windows)
+4. Install and sign in
+```
+
+### Step 2: Interface Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    CLAUDE DESKTOP INTERFACE                            │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │   Claude Desktop                                             │    │
+│   │                                                               │    │
+│   │   ┌─────────────────────────────────────────────────────────┐ │    │
+│   │   │                                                         │ │    │
+│   │   │   [Search & Tools]  ← Connectors are here!             │ │    │
+│   │   │                                                         │ │    │
+│   │   │   Chat input area                                      │ │    │
+│   │   │                                                         │ │    │
+│   │   └─────────────────────────────────────────────────────────┘ │    │
+│   │                                                               │    │
+│   └───────────────────────────────────────────────────────────────┘    │
+│                                                                         │
+│   Connectors available:                                                 │
+│   • Google Drive                                                       │
+│   • Gmail                                                              │
+│   • Calendar                                                           │
+│   • Notion                                                             │
+│   • Slack                                                              │
+│   • Hugging Face                                                      │
+│   • And many more...                                                  │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 4. Demo 1: Filesystem Server (Local + Connector)
+
+### Overview
+
+| Aspect | Detail |
+|--------|--------|
+| **Type** | Local Server |
+| **Connection Method** | Connector (one-click) |
+| **Purpose** | Read/write files on your machine |
+| **Setup Time** | ~1 minute |
+
+### Step-by-Step Setup
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    FILESYSTEM SETUP STEPS                              │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   1. Click on "Search & Tools" icon in Claude Desktop                  │
+│                                                                         │
+│   2. Click "Add Connectors"                                            │
+│                                                                         │
+│   3. Under "Desktop Extensions", find "Filesystem"                    │
+│                                                                         │
+│   4. Click "Install"                                                   │
+│                                                                         │
+│   5. Choose which directories to grant access to                       │
+│      (e.g., Desktop, Downloads, Project folders)                      │
+│                                                                         │
+│   6. Restart Claude Desktop                                            │
+│                                                                         │
+│   7. ✅ Connected!                                                     │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Security Feature: Directory Access Control
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    DIRECTORY ACCESS CONTROL                             │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ⚠️ By default, Filesystem server can only access directories you    │
+│      explicitly allow.                                                  │
+│                                                                         │
+│   Example:                                                              │
+│   ┌──────────────────────────────────────────────────────────────────┐ │
+│   │   Allowed Directories:                                          │ │
+│   │   ✅ /Users/nitesh/Desktop                                      │ │
+│   │   ❌ /System (blocked)                                          │ │
+│   │   ❌ /Users/nitesh/.ssh (blocked)                               │ │
+│   └──────────────────────────────────────────────────────────────────┘ │
+│                                                                         │
+│   ✅ This is a SECURITY FEATURE!                                      │
+│   • Prevents accidental deletion of system files                     │
+│   • Protects sensitive directories                                   │
+│   • You control exactly what the AI can access                       │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Practical Demo: Reading Files
+
+**User Prompt:**
+> "Can you tell me if there are any PDF files on my desktop?"
+
+**What Happens:**
+1. Claude asks for permission to access Desktop
+2. User clicks "Allow"
+3. Claude uses `list_directory` tool
+4. Returns list of PDF files
+
+### Practical Demo: Writing Files
+
+**User Prompt:**
+> "Write a code to print Fibonacci numbers in Python. Save it as a Python file on my desktop."
+
+**What Happens:**
+1. Claude generates the code
+2. Claude asks permission to write file
+3. User clicks "Allow"
+4. File is created on Desktop
+
+### Real-World Use Cases
+
+| Use Case | How It Works |
+|----------|--------------|
+| **Organize Downloads** | "Organize my Downloads folder" |
+| **Summarize Code** | "Summarize all files in my project folder" |
+| **Find Old Files** | "Find files older than 6 months" |
+| **Rename Files** | "Rename all JPEG files to 'image_1.jpg' format" |
+| **Generate Reports** | "Create a summary of all files in this folder" |
+
+---
+
+## 5. Demo 2: Manim Server (Local + JSON Config)
+
+### What is Manim?
+
+> Manim is a Python library used by **3Blue1Brown** (a famous YouTube math channel) for creating beautiful mathematical animations.
+
+**3Blue1Brown Channel:** Known for:
+- Complex mathematical concepts visualized beautifully
+- Neural networks and LLM explanations
+- Linear algebra, calculus, and more
+- Stunning visualizations
+
+### Why Manim + MCP is Powerful
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    MANIM + MCP WORKFLOW                               │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   INPUT: Plain English description                                     │
+│   "Create an animation showing vector transformation in linear        │
+│    algebra - show grid, basis vectors, and transformation matrix"     │
+│                                                                         │
+│         │                                                               │
+│         ▼                                                               │
+│   Claude Desktop (connected to Manim server)                          │
+│         │                                                               │
+│         ▼                                                               │
+│   Manim Server: Generates the code                                    │
+│                                                                         │
+│         │                                                               │
+│         ▼                                                               │
+│   OUTPUT: Animation video (MP4)                                       │
+│                                                                         │
+│   Just like 3Blue1Brown videos!                                       │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Manim Server Setup (JSON Configuration)
+
+**Step 1: Install Dependencies**
+```bash
+# Install Manim
+pip install manim
+
+# Install MCP
+pip install mcp
+```
+
+**Step 2: Clone the Manim MCP Server**
+```bash
+cd Desktop
+git clone https://github.com/username/manim-mcp-server.git
+cd manim-mcp-server/src
+pwd  # Get the absolute path
+```
+
+**Step 3: Get Python Path**
+```bash
+which python3
+# Output: /usr/bin/python3
+```
+
+**Step 4: Edit Claude Desktop Configuration**
+
+Find the config file:
+1. Open Claude Desktop
+2. Go to Settings → Developer → Edit Config
+3. This opens a JSON file
+
+Add this configuration:
+
+```json
+{
+  "mcpServers": {
+    "manim": {
+      "command": "python3",
+      "args": [
+        "/Users/nitesh/Desktop/manim-mcp-server/src/manim_server.py"
+      ],
+      "env": {
+        "PYTHONPATH": "/Users/nitesh/Desktop/manim-mcp-server/src"
+      }
+    }
+  }
+}
+```
+
+**Step 5: Restart Claude Desktop**
+
+### Demo: Vector Transformation Animation
+
+**Prompt Used:**
+> "Use the Manim server to create an animation showing the concept of vector transformation in linear algebra. First create a 2D coordinate grid, show two basis vectors I and J, apply a matrix transformation [[2, 1], [1, 2]], show the whole grid bending, and show the new vectors. Add the title 'Vector Transformation'."
+
+**Result:**
+- Claude generates Manim code
+- Executes the code
+- Produces an MP4 animation
+- Shows: Grid → basis vectors → transformation → new vectors
+
+### Requirements for Manim
+
+| Requirement | Notes |
+|-------------|-------|
+| **Python** | Required to run the server |
+| **Manim Library** | Install via pip |
+| **MCP Library** | Install via pip |
+| **LaTeX** | Optional, for mathematical symbols (~10-15GB) |
+| **FFmpeg** | Required for video rendering |
+
+### Why Manim MCP Server is Exciting
+
+| Benefit | Explanation |
+|---------|-------------|
+| **No coding required** | You just describe what you want |
+| **3Blue1Brown quality** | Professional animations |
+| **Learn faster** | Visualize complex concepts |
+| **Customizable** | Change colors, text, style |
+| **Any math topic** | Linear algebra, calculus, ML, DL, etc. |
+
+---
+
+## 6. Demo 3: Google Drive Server (Remote + Connector)
+
+### Overview
+
+| Aspect | Detail |
+|--------|--------|
+| **Type** | Remote Server |
+| **Connection Method** | Connector (one-click) |
+| **Purpose** | Read/write Google Drive files |
+| **Setup Time** | ~30 seconds |
+
+### Step-by-Step Setup
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    GOOGLE DRIVE SETUP STEPS                            │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   1. Click on "Search & Tools" icon in Claude Desktop                  │
+│                                                                         │
+│   2. Click "Drive Search" or "Add Connectors"                         │
+│                                                                         │
+│   3. Select "Google Drive" from available connectors                   │
+│                                                                         │
+│   4. Click "Sign In" and authenticate with Google                     │
+│                                                                         │
+│   5. Grant permissions to read Google Drive                           │
+│                                                                         │
+│   6. ✅ Connected!                                                     │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Demo: Summarize Google Drive Document
+
+**User Prompt:**
+> "Can you summarize the document from my Google Drive about AI newsletter content ideas?"
+
+**What Happens:**
+1. Claude searches Google Drive
+2. Finds the document
+3. Reads the content
+4. Returns a summary
+
+### Google Drive Server - Read Only
+
+> ⚠️ **Important:** The Google Drive MCP server is **READ-ONLY**.
+> - You can **read** files and documents
+> - You **cannot** create new files
+> - You **cannot** edit existing files
+> - You **cannot** delete files
+
+### Why Google Drive MCP is Powerful
+
+| Use Case | Example |
+|----------|---------|
+| **Find documents** | "Find all meeting notes from last month" |
+| **Summarize** | "Summarize all quarterly reports" |
+| **Search** | "Find documents containing 'Q3 budget'" |
+| **Extract info** | "Extract all email addresses from this doc" |
+| **Compare** | "Compare these two versions of the contract" |
+
+---
+
+## 7. Flow Diagrams
+
+### Diagram 1: The Overall "How" Strategy
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    OVERALL LEARNING PATH                               │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ┌─────────────────────────────────────────────────────────────┐      │
+│   │                     PHASE 1 (Current)                        │      │
+│   │                                                              │      │
+│   │   PRE-MADE Client (Claude Desktop)                          │      │
+│   │         │                                                    │      │
+│   │         ▼                                                    │      │
+│   │   PRE-MADE Servers                                           │      │
+│   │   ├── Local: Filesystem (Connector)                         │      │
+│   │   ├── Local: Manim (JSON Config)                            │      │
+│   │   ├── Remote: Google Drive (Connector)                      │      │
+│   │   └── Remote: Twitter (JSON Config)                         │      │
+│   │                                                              │      │
+│   │   Result: Experience MCP without coding!                    │      │
+│   └─────────────────────────────────────────────────────────────┘      │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌─────────────────────────────────────────────────────────────┐      │
+│   │                     PHASE 2 (Next)                          │      │
+│   │                                                              │      │
+│   │   PRE-MADE Client (Claude Desktop)                          │      │
+│   │         │                                                    │      │
+│   │         ▼                                                    │      │
+│   │   CUSTOM Server (Build our own)                             │      │
+│   │                                                              │      │
+│   │   Result: Learn to build MCP servers!                       │      │
+│   └─────────────────────────────────────────────────────────────┘      │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌─────────────────────────────────────────────────────────────┐      │
+│   │                     PHASE 3 (Future)                        │      │
+│   │                                                              │      │
+│   │   CUSTOM Client (Build our own)                             │      │
+│   │         │                                                    │      │
+│   │         ▼                                                    │      │
+│   │   CUSTOM Server (Build our own)                             │      │
+│   │                                                              │      │
+│   │   Result: Full MCP implementation!                          │      │
+│   └─────────────────────────────────────────────────────────────┘      │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Diagram 2: Connectors vs JSON Config
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    CONNECTORS VS JSON CONFIG                           │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │              CONNECTORS (New Method)                           │  │
+│   ├─────────────────────────────────────────────────────────────────┤  │
+│   │                                                                  │  │
+│   │   User          Claude Desktop        Anthropic Backend        │  │
+│   │    │                  │                     │                   │  │
+│   │    │  1. Click button  │                     │                   │  │
+│   │    │─────────────────▶│                     │                   │  │
+│   │    │                  │  2. Get connector   │                   │  │
+│   │    │                  │  list               │                   │  │
+│   │    │                  │────────────────────▶│                   │  │
+│   │    │                  │                     │                   │  │
+│   │    │  3. Choose Drive │                     │                   │  │
+│   │    │─────────────────▶│                     │                   │  │
+│   │    │                  │  4. Sign-in flow   │                   │  │
+│   │    │                  │────────────────────▶│                   │  │
+│   │    │                  │                     │                   │  │
+│   │    │  5. ✅ Connected!│                     │                   │  │
+│   │    │◀─────────────────│                     │                   │  │
+│   │    │                  │                     │                   │  │
+│   │    ⚡ ZERO CONFIGURATION CODE WRITTEN!                          │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │              JSON CONFIG (Traditional Method)                  │  │
+│   ├─────────────────────────────────────────────────────────────────┤  │
+│   │                                                                  │  │
+│   │   User           Claude Desktop         Local Server            │  │
+│   │    │                   │                     │                   │  │
+│   │    │  1. Open config   │                     │                   │  │
+│   │    │  file manually    │                     │                   │  │
+│   │    │─────────────────▶│                     │                   │  │
+│   │    │                   │  2. Edit JSON      │                   │  │
+│   │    │                   │  manually          │                   │  │
+│   │    │                   │                     │                   │  │
+│   │    │  3. Add server    │                     │                   │  │
+│   │    │  details          │                     │                   │  │
+│   │    │─────────────────▶│                     │                   │  │
+│   │    │                   │  4. Restart Claude │                   │  │
+│   │    │                   │────────────────────▶│                   │  │
+│   │    │                   │                     │                   │  │
+│   │    │  5. ✅ Connected!│                     │                   │  │
+│   │    │◀─────────────────│                     │                   │  │
+│   │    │                   │                     │                   │  │
+│   │    ⚡ MANUAL CONFIGURATION REQUIRED                              │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Diagram 3: Filesystem Server Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    FILESYSTEM SERVER FLOW                              │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   User                                                                  │
+│    │                                                                    │
+│    │  "Write Fibonacci code in Python"                                 │
+│    ▼                                                                    │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │                    Claude Desktop                             │    │
+│   │  1. Receives user prompt                                      │    │
+│   │  2. LLM decides to use Filesystem server                     │    │
+│   │  3. Sends request to Filesystem MCP server                   │    │
+│   └──────────────────────────┬────────────────────────────────────┘    │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │                    Filesystem Server (Local)                  │    │
+│   │  1. Receives request: "write_file"                           │    │
+│   │  2. Creates file on Desktop                                  │    │
+│   │  3. Returns success response                                 │    │
+│   └──────────────────────────┬────────────────────────────────────┘    │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │                    Claude Desktop                             │    │
+│   │  1. Receives response                                         │    │
+│   │  2. Generates final response to user                         │    │
+│   └──────────────────────────┬────────────────────────────────────┘    │
+│                              │                                         │
+│                              ▼                                         │
+│   User receives: "File created successfully!"                         │
+│                                                                         │
+│   Actual file created on Desktop: fibonacci.py                        │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Diagram 4: Manim Server Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    MANIM SERVER FLOW                                   │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   User                                                                  │
+│    │                                                                    │
+│    │  "Create vector transformation animation"                         │
+│    ▼                                                                    │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │                    Claude Desktop                             │    │
+│   │  1. Receives natural language prompt                         │    │
+│   │  2. LLM understands request                                  │    │
+│   │  3. Sends to Manim server                                    │    │
+│   └──────────────────────────┬────────────────────────────────────┘    │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │                    Manim Server (Local)                       │    │
+│   │  1. Receives request description                             │    │
+│   │  2. Generates Manim code                                     │    │
+│   │  3. Executes Manim code                                      │    │
+│   │  4. Creates animation video (MP4)                            │    │
+│   │  5. Sends video back to Claude                               │    │
+│   └──────────────────────────┬────────────────────────────────────┘    │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │                    Claude Desktop                             │    │
+│   │  1. Receives video                                            │    │
+│   │  2. Displays video to user                                   │    │
+│   └──────────────────────────┬────────────────────────────────────┘    │
+│                              │                                         │
+│                              ▼                                         │
+│   User sees professional 3Blue1Brown-style animation!                  │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Diagram 5: Google Drive Server Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    GOOGLE DRIVE SERVER FLOW                            │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   User                                                                  │
+│    │                                                                    │
+│    │  "Summarize my Google Drive document"                             │
+│    ▼                                                                    │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │                    Claude Desktop                             │    │
+│   │  1. Receives user prompt                                      │    │
+│   │  2. LLM decides to use Google Drive server                   │    │
+│   │  3. Sends request to Google Drive MCP server                 │    │
+│   └──────────────────────────┬────────────────────────────────────┘    │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │                    Google Drive Server (Remote)               │    │
+│   │  1. Authenticates with Google (token)                        │    │
+│   │  2. Searches Drive for document                              │    │
+│   │  3. Reads document content                                   │    │
+│   │  4. Returns content to Claude                                │    │
+│   └──────────────────────────┬────────────────────────────────────┘    │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │                    Claude Desktop                             │    │
+│   │  1. Receives document content                                 │    │
+│   │  2. Generates summary                                        │    │
+│   │  3. Displays summary to user                                 │    │
+│   └──────────────────────────┬────────────────────────────────────┘    │
+│                              │                                         │
+│                              ▼                                         │
+│   User sees: "Here's the summary of your document..."                  │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 8. Code Examples
+
+### Example 1: Filesystem Connector Setup
+
+```json
+// This is automatically created when you install the Filesystem connector
+// No need to write this manually!
+
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/nitesh/Desktop",
+        "/Users/nitesh/Downloads"
+      ]
+    }
+  }
+}
+```
+
+### Example 2: Manim Server JSON Config
+
+```json
+{
+  "mcpServers": {
+    "manim": {
+      "command": "python3",
+      "args": [
+        "/Users/nitesh/Desktop/manim-mcp-server/src/manim_server.py"
+      ],
+      "env": {
+        "PYTHONPATH": "/Users/nitesh/Desktop/manim-mcp-server/src"
+      }
+    }
+  }
+}
+```
+
+**Steps to set up:**
+
+```bash
+# Step 1: Install dependencies
+pip install manim mcp
+
+# Step 2: Clone the repository
+cd ~/Desktop
+git clone https://github.com/username/manim-mcp-server.git
+
+# Step 3: Get Python path
+which python3
+# Output: /usr/bin/python3
+
+# Step 4: Get the server file path
+cd manim-mcp-server/src
+pwd
+# Output: /Users/nitesh/Desktop/manim-mcp-server/src
+
+# Step 5: Add config to Claude Desktop config file
+# Location: ~/Library/Application Support/Claude/claude_desktop_config.json
+```
+
+### Example 3: Google Drive Connector Setup
+
+```json
+// This is automatically created when you connect Google Drive
+// No manual code needed!
+
+{
+  "mcpServers": {
+    "gdrive": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-google-drive"
+      ],
+      "env": {
+        "GOOGLE_DRIVE_CLIENT_ID": "auto-generated",
+        "GOOGLE_DRIVE_CLIENT_SECRET": "auto-generated",
+        "GOOGLE_DRIVE_REFRESH_TOKEN": "auto-generated"
+      }
+    }
+  }
+}
+```
+
+### Example 4: Prompt for Filesystem
+
+```
+# Reading files
+"Can you tell me if there are any PDF files on my desktop?"
+
+# Writing files
+"Write a code to print Fibonacci numbers in Python. Save it as a Python file on my desktop."
+
+# Organization
+"Organize my Downloads folder - group files by type (images, documents, videos)."
+
+# Searching
+"Find all Python files in my project folder that contain the word 'api'."
+```
+
+### Example 5: Prompt for Manim
+
+```
+# Vector Transformation Animation
+"Use the Manim server to create an animation showing the concept of vector transformation in linear algebra. 
+First create a 2D coordinate grid. Show two basis vectors I and J. Apply a matrix transformation [[2, 1], [1, 2]]. 
+Show the whole grid bending and show the new vectors. Add the title 'Vector Transformation'."
+
+# Neural Network Visualization
+"Create a visualization of a neural network with 3 input nodes, 4 hidden nodes, and 2 output nodes. 
+Show connections between layers. Animate data flowing through the network."
+
+# Gradient Descent
+"Create an animation showing gradient descent on a 3D loss surface. Show the path of the optimizer finding the minimum."
+```
+
+### Example 6: Prompt for Google Drive
+
+```
+"Summarize my document about AI newsletter content ideas from Google Drive."
+
+"Find all spreadsheets in my Drive that mention 'Q4 budget'."
+
+"List all documents shared with me in the last week."
+
+"Create a new folder called 'Project Reports' in my Google Drive."
+
+"Extract all email addresses from this document: https://drive.google.com/file/d/xxx"
+```
+
+---
+
+## 9. Key Pointers Summary
+
+| Concept | Explanation |
+|---------|-------------|
+| **Connectors** | One-click integration; built by Anthropic; for popular SaaS tools |
+| **JSON Config** | Manual configuration; for custom/personal servers |
+| **Local Servers** | Run on your machine; use stdio transport |
+| **Remote Servers** | Run on the internet; use HTTP + SSE transport |
+| **Filesystem Server** | Read/write files on your computer |
+| **Manim Server** | Create 3Blue1Brown-style math animations |
+| **Google Drive Server** | Read-only access to Google Drive files |
+| **Permission System** | Claude asks permission before any file operation |
+| **Open Standard** | MCP is open; anyone can build servers |
+| **Security** | Granular access control; you decide what AI can access |
+
+### Important Rules:
+
+| Rule | Explanation |
+|------|-------------|
+| **Restart after changes** | Always restart Claude Desktop after adding/removing MCP servers |
+| **Permissions required** | Claude asks permission before any file/tool operation |
+| **Connectors are curated** | Only popular services have connectors |
+| **JSON config for custom** | For custom servers, always use JSON config |
+| **Local vs Remote** | Different setup methods for different server types |
+| **Google Drive is Read-Only** | You cannot write/create files in Google Drive |
+
+---
+
+## 10. Quick Reference
+
+### Server Summary Table
+
+| Server | Type | Connection | Purpose | Read/Write |
+|--------|------|------------|---------|------------|
+| **Filesystem** | Local | Connector | Read/write files on machine | Both |
+| **Manim** | Local | JSON Config | Generate math animations | Generate |
+| **Google Drive** | Remote | Connector | Access Drive files | Read Only |
+| **Twitter/X** | Remote | JSON Config | Read/post tweets | Both |
+
+### Learning Path Summary
+
+1. **Phase 1 (Current):** Experience MCP with pre-made tools
+2. **Phase 2 (Next):** Build custom MCP servers
+3. **Phase 3 (Future):** Build custom MCP clients
+
+---
+
+## 11. Final Summary
+
+> **"MCP is not just theoretical - it's practical and accessible today!"**
+
+You can start using MCP right now with zero coding:
+1. Install Claude Desktop
+2. Click "Add Connectors"
+3. Start using AI with real-world tools!
+
+### Key Takeaways:
+
+| Takeaway | Explanation |
+|----------|-------------|
+| **Two Connection Methods** | Connectors (easy) and JSON Config (flexible) |
+| **Local & Remote Servers** | Both types are supported with different transports |
+| **Permission System** | You control what the AI can access |
+| **Manim is a Game Changer** | Create professional math animations with natural language |
+| **Read-Only Google Drive** | You can read but not write to Drive |
+| **Next Steps** | Build custom servers and clients |
+
+---
+
 summaries this MCP tutorial transcript in simple words with all detail along with flow diagrams, also make note of all important pointers and explain each important concepts with basic code examples
