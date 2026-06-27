@@ -2763,7 +2763,7 @@ MCP's genius is **separating WHAT is said (JSON-RPC messages) from HOW it's deli
 
 ## 04. The MCP Lifecycle | MCP Trilogy (55:04)
 
-This part covers the **MCP Lifecycle** - the complete sequence of steps that govern how a host and server establish, use, and end a connection during a session. It includes **practical demos** showing JSON-RPC messages in action.
+This tutorial covers the **MCP Lifecycle** - the complete sequence of steps that govern how a host and server establish, use, and end a connection during a session. It includes **practical demos** showing JSON-RPC messages in action.
 
 ---
 
@@ -2784,9 +2784,12 @@ This part covers the **MCP Lifecycle** - the complete sequence of steps that gov
    - Capability Discovery
    - Tool Calling
 7. [Phase 3: Shutdown](#7-phase-3-shutdown)
+   - STDIO Shutdown
+   - HTTP Shutdown
 8. [Practical Demo Walkthrough](#8-practical-demo-walkthrough)
 9. [Flow Diagrams](#9-flow-diagrams)
 10. [Key Pointers Summary](#10-key-pointers-summary)
+11. [Code Examples](#11-code-examples)
 
 ---
 
@@ -2803,6 +2806,9 @@ A **session** is one continuous connection between a client and a server.
 - Behind the scenes, Claude Desktop connects to your GitHub MCP Server
 - Until you close Claude Desktop, there is a **continuous connection** between them
 - That continuous connection is the **session**
+
+### In Simple Terms:
+The MCP Lifecycle is the **rulebook** that defines how the MCP architecture (Host, Client, Server, Transport) actually works together step-by-step during a session.
 
 ---
 
@@ -3098,6 +3104,36 @@ Ending the session happens when:
 
 **What happens:** The continuous connection between client and server is broken.
 
+### Key Point About Shutdown:
+> **No JSON-RPC messages are exchanged during shutdown.** The responsibility lies entirely with the Transport Layer.
+
+### Shutdown in STDIO (Local Servers)
+
+**Client-Initiated Shutdown (Most Common):**
+1. Client closes the server's **input stream** (stdin)
+2. Client waits for server to exit
+3. If server doesn't exit, client sends **SIGTERM** (polite request)
+4. If server still doesn't exit, client sends **SIGKILL** (force termination)
+
+**Server-Initiated Shutdown (Rare):**
+1. Server closes its **output stream** (stdout)
+2. Server exits itself
+
+| Signal | Meaning | Behavior |
+|--------|---------|----------|
+| **SIGTERM** | Signal Terminate | Polite request to shut down |
+| **SIGKILL** | Signal Kill | Force termination |
+
+### Shutdown in HTTP (Remote Servers)
+
+**Client-Initiated Shutdown:**
+- Client closes the open HTTP connection
+
+**Server-Initiated Shutdown:**
+- Server closes the HTTP connection
+- Client should be prepared to handle dropped connections gracefully
+- Client should attempt to reconnect
+
 ---
 
 ## 8. Practical Demo Walkthrough
@@ -3298,6 +3334,7 @@ Ending the session happens when:
 │   │   • OR Network failure                                     │      │
 │   │                                                             │      │
 │   │   Result: Session ends, connection closes                  │      │
+│   │   ⚠️ No JSON-RPC messages exchanged during shutdown       │      │
 │   └─────────────────────────────────────────────────────────────┘      │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -3450,6 +3487,85 @@ Ending the session happens when:
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
+### Diagram 5: Shutdown Flow (STDIO)
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    SHUTDOWN FLOW (STDIO)                               │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   CLIENT-INITIATED SHUTDOWN (Most Common)                             │
+│                                                                         │
+│   ┌─────────────┐                    ┌─────────────┐                   │
+│   │   Client    │                    │   Server    │                   │
+│   │ (Claude)    │                    │ (Filesystem)│                   │
+│   └──────┬──────┘                    └──────┬──────┘                   │
+│          │                                   │                         │
+│          │  1. Close stdin (input stream)    │                         │
+│          │─────────────────────────────────▶│                         │
+│          │                                   │                         │
+│          │  2. Wait for server to exit      │                         │
+│          │                                   │                         │
+│          │  3. (If not exited) Send SIGTERM │                         │
+│          │─────────────────────────────────▶│                         │
+│          │     (Polite request to shutdown)  │                         │
+│          │                                   │                         │
+│          │  4. Wait a bit more              │                         │
+│          │                                   │                         │
+│          │  5. (If still not exited)        │                         │
+│          │     Send SIGKILL                 │                         │
+│          │─────────────────────────────────▶│                         │
+│          │     (Force termination)           │                         │
+│          │                                   │                         │
+│          │                                   │  6. Server exits       │
+│          │                                   │                         │
+│                                                                         │
+│   ⚠️ No JSON-RPC messages are exchanged during shutdown               │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Diagram 6: Shutdown Flow (HTTP)
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    SHUTDOWN FLOW (HTTP)                                │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   CLIENT-INITIATED SHUTDOWN                                            │
+│                                                                         │
+│   ┌─────────────┐                    ┌─────────────┐                   │
+│   │   Client    │                    │   Server    │                   │
+│   │ (Claude)    │                    │ (Remote)    │                   │
+│   └──────┬──────┘                    └──────┬──────┘                   │
+│          │                                   │                         │
+│          │  HTTP Connection Open            │                         │
+│          │◀────────────────────────────────▶│                         │
+│          │                                   │                         │
+│          │  1. Close HTTP connection        │                         │
+│          │─────────────────────────────────▶│                         │
+│          │                                   │                         │
+│          │     Session ends                  │                         │
+│          │                                   │                         │
+│   ┌─────────────┐                    ┌─────────────┐                   │
+│   │   Client    │                    │   Server    │                   │
+│   └──────┬──────┘                    └──────┬──────┘                   │
+│          │                                   │                         │
+│          │  HTTP Connection Open            │                         │
+│          │◀────────────────────────────────▶│                         │
+│          │                                   │                         │
+│          │                                   │  1. Close connection   │
+│          │◀─────────────────────────────────│                         │
+│          │                                   │                         │
+│          │  2. Handle dropped connection     │                         │
+│          │     gracefully                    │                         │
+│          │                                   │                         │
+│          │  3. Attempt to reconnect          │                         │
+│          │     if needed                     │                         │
+│          │                                   │                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
 ---
 
 ## 10. Key Pointers Summary
@@ -3467,6 +3583,7 @@ Ending the session happens when:
 | **Capability Discovery** | Client asks server for exact list of tools/resources/prompts |
 | **Tool Calling** | Client calls a specific tool with arguments |
 | **Shutdown** | Session ends when client or server closes |
+| **No JSON-RPC in Shutdown** | Shutdown is handled by transport layer, not JSON-RPC |
 
 ### Important Rules to Remember:
 
@@ -3648,6 +3765,77 @@ server_can_use = ["roots", "sampling", "elicitation"]
 // Client knows to request tools/list again to get updated list
 ```
 
+### Example 6: Version Negotiation Logic
+
+```python
+class MCPClient:
+    def __init__(self):
+        # Client supports multiple protocol versions
+        self.supported_versions = ["2024-11-05", "2025-03-26", "2025-06-01"]
+        self.current_version = "2024-11-05"
+    
+    def negotiate_version(self, server_protocol_version):
+        """Check if server version is compatible"""
+        if server_protocol_version in self.supported_versions:
+            print(f"✅ Version {server_protocol_version} is supported!")
+            self.current_version = server_protocol_version
+            return True
+        else:
+            print(f"❌ Version {server_protocol_version} not supported!")
+            print(f"   Supported versions: {self.supported_versions}")
+            return False
+
+# Usage
+client = MCPClient()
+server_version = "2025-03-26"
+if client.negotiate_version(server_version):
+    # Proceed with initialization
+    pass
+else:
+    # Disconnect
+    pass
+```
+
+### Example 7: Shutdown Handling (STDIO)
+
+```python
+import os
+import signal
+import subprocess
+import time
+
+class MCPClient:
+    def shutdown_client(self, server_process):
+        """Client-initiated shutdown for local server"""
+        print("🚀 Initiating shutdown...")
+        
+        # 1. Close stdin
+        server_process.stdin.close()
+        print("📝 stdin closed")
+        
+        # 2. Wait for server to exit gracefully
+        for attempt in range(3):
+            if server_process.poll() is not None:
+                print("✅ Server exited gracefully")
+                return
+            
+            print(f"⏳ Waiting for server to exit (attempt {attempt+1})...")
+            time.sleep(1)
+        
+        # 3. Send SIGTERM (polite)
+        if server_process.poll() is None:
+            print("📨 Sending SIGTERM...")
+            server_process.terminate()
+            time.sleep(2)
+        
+        # 4. Send SIGKILL (force) if still running
+        if server_process.poll() is None:
+            print("💀 Sending SIGKILL...")
+            server_process.kill()
+        
+        print("🔚 Shutdown complete")
+```
+
 ---
 
 ## 11. Summary Table
@@ -3661,7 +3849,7 @@ server_can_use = ["roots", "sampling", "elicitation"]
 | **Operation 2** | Discover resources | `resources/list` | Optional; based on capabilities |
 | **Operation 3** | Discover prompts | `prompts/list` | Optional; based on capabilities |
 | **Operation 4** | Call tool | `tools/call` | User-driven; with arguments |
-| **Shutdown** | End session | N/A | Client closes or server terminates |
+| **Shutdown** | End session | N/A | Transport layer handles; no JSON-RPC |
 
 ---
 
@@ -3691,7 +3879,982 @@ server_can_use = ["roots", "sampling", "elicitation"]
    - Standard format for all messages
    - Requests have IDs; notifications don't
 
+7. **Shutdown has no JSON-RPC:**
+   - Transport layer handles it
+   - For STDIO: close stdin → SIGTERM → SIGKILL
+   - For HTTP: close connection
+
 ---
 
+# MCP Tutorial - Part 4B: "Special Cases" - Complete Summary
+
+This transcript covers the **special cases** in the MCP Lifecycle - situations that deviate from the normal flow, including **Pings**, **Error Handling**, **Timeouts**, **Cancellation**, and **Progress Notifications**.
+
+---
+
+## 📖 Table of Contents
+1. [Overview of Special Cases](#1-overview-of-special-cases)
+2. [Pings - Keep-Alive Mechanism](#2-pings---keep-alive-mechanism)
+3. [Error Handling](#3-error-handling)
+   - Error Scenarios
+   - Error Object Structure
+   - Common Error Codes
+4. [Timeouts](#4-timeouts)
+5. [Cancellation](#5-cancellation)
+6. [Progress Notifications](#6-progress-notifications)
+7. [Flow Diagrams](#7-flow-diagrams)
+8. [Code Examples](#8-code-examples)
+9. [Key Pointers Summary](#9-key-pointers-summary)
+
+---
+
+## 1. Overview of Special Cases
+
+While the normal MCP lifecycle follows a standard flow (Initialization → Operation → Shutdown), there are several **special cases** that handle edge situations:
+
+| Special Case | Purpose |
+|--------------|---------|
+| **Pings** | Check if the other side is still alive |
+| **Error Handling** | Signal when something goes wrong |
+| **Timeouts** | Prevent requests from hanging forever |
+| **Cancellation** | Cancel a long-running request |
+| **Progress Notifications** | Provide real-time feedback to users |
+
+---
+
+## 2. Pings - Keep-Alive Mechanism
+
+### What is a Ping?
+
+> A ping is a **lightweight request-response method** defined in MCP.
+
+**Purpose:**
+> To check whether the other side (host/server) is still alive and the connection is responsive.
+
+### Why are Pings Needed?
+
+1. **Long-running tasks** may have no communication for extended periods
+2. **OS/Proxies/Firewalls** may drop idle connections
+3. **Periodic pings** keep the connection alive
+
+### Ping Request-Response Flow
+
+**Request (from either side):**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "ping"
+}
+```
+
+**Response:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {}
+}
+```
+
+> 💡 **Note:** The response has an empty `result` because it's just a ping.
+
+### When is Ping Used?
+
+| Scenario | Description |
+|----------|-------------|
+| **Before Full Initialization** | Check if the other side is up before initializing |
+| **During Long-Running Tasks** | Keep connection alive by sending periodic pings |
+| **After Inactivity** | Prevent silent disconnection from OS/proxy/firewall |
+
+### Ping is Bi-Directional
+
+- **Client → Server** pings
+- **Server → Client** pings (MCP is bidirectional!)
+
+---
+
+## 3. Error Handling
+
+> Error handling in MCP is how the host and server signal that something went wrong with a request.
+
+### Where Errors Can Occur
+
+| Scenario | Example |
+|----------|---------|
+| **Initialization** | Protocol version mismatch |
+| **Invalid Method** | Calling a method the server never negotiated |
+| **Invalid Arguments** | Passing wrong parameters to a tool |
+| **Server Failure** | Internal server error while processing |
+| **Timeout** | Request took too long |
+| **Syntax Error** | Malformed JSON-RPC message |
+
+### Error Object Structure
+
+MCP uses the **standard JSON-RPC error object**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "error": {
+    "code": -32601,
+    "message": "Method not found",
+    "data": "Optional additional info"
+  }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| **code** | Numeric error code (identifies the type of error) |
+| **message** | Human-readable error description |
+| **data** | Optional additional debugging information |
+
+### Common Error Codes
+
+| Code | Name | Description |
+|------|------|-------------|
+| **-32601** | Method Not Found | The method being called doesn't exist |
+| **-32602** | Invalid Params | Parameters are invalid for the method |
+| **-32600** | Invalid Request | The request is malformed |
+| **-32700** | Parse Error | Invalid JSON in request body |
+| **32000+** | Server-specific | Authentication failure, rate limit exceeded, quota error, internal issues |
+
+### Example: Method Not Found Error
+
+This is what we saw in the demo when the client asked for `prompts/list` but the server only supported tools:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "error": {
+    "code": -32601,
+    "message": "Method not found"
+  }
+}
+```
+
+---
+
+## 4. Timeouts
+
+### What is a Timeout?
+
+> Timeout is about ensuring requests don't hang forever.
+
+**Purpose:**
+- Avoid unresponsive or overloaded servers
+- Free up resources (memory, CPU, connections)
+- Provide feedback to users
+
+### How Timeouts Work
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    TIMEOUT FLOW                                        │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   1. Client sets timeout (e.g., 30 seconds) for a specific request    │
+│                                                                         │
+│   2. Client sends request to server                                    │
+│                                                                         │
+│   3. Server takes more than 30 seconds to respond                      │
+│                                                                         │
+│   4. Client triggers timeout                                           │
+│                                                                         │
+│   5. Client sends cancellation notification to server                  │
+│        {                                                               │
+│          "method": "notifications/cancelled",                          │
+│          "params": {                                                   │
+│            "requestId": 7,                                             │
+│            "reason": "Timeout exceeded: 30 seconds"                    │
+│          }                                                             │
+│        }                                                               │
+│                                                                         │
+│   6. Server stops processing the request                               │
+│                                                                         │
+│   7. User receives feedback about the timeout                          │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Why Timeouts are Important
+
+| Reason | Explanation |
+|--------|-------------|
+| **User Experience** | Users shouldn't wait forever |
+| **Resource Management** | Free up resources used by hanging requests |
+| **Reliability** | Detect and handle unresponsive servers |
+| **Scalability** | Prevent cascading failures |
+
+---
+
+## 5. Cancellation
+
+### What is Cancellation?
+
+> Cancellation is the ability to stop a long-running request before it completes.
+
+### How Cancellation Works
+
+1. **Client** sets a timeout for a request
+2. **Client** sends the request to the server
+3. **Server** starts processing
+4. **Timeout** is exceeded
+5. **Client** sends a cancellation notification
+6. **Server** receives the notification and stops processing
+7. **Server** does NOT send a response
+
+### Cancellation Notification
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "notifications/cancelled",
+  "params": {
+    "requestId": 7,
+    "reason": "Timeout exceeded: 30 seconds"
+  }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| **requestId** | ID of the request being cancelled (must match original request) |
+| **reason** | Optional reason for cancellation |
+
+### Key Point:
+> The server stops processing and does **not** send a response when it receives a cancellation notification.
+
+---
+
+## 6. Progress Notifications
+
+### What are Progress Notifications?
+
+> Progress notifications let the client know that a long-running request is still making progress.
+
+**Purpose:**
+> To provide real-time feedback to the user about the status of a long-running task.
+
+### How Progress Notifications Work
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    PROGRESS NOTIFICATION FLOW                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   1. Client sends a request with a "progress token" in metadata        │
+│                                                                         │
+│   2. Server processes the request                                      │
+│                                                                         │
+│   3. Server periodically sends progress notifications                  │
+│                                                                         │
+│   4. Client displays progress to user                                  │
+│                                                                         │
+│   5. Server completes and sends final result                           │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Example: Request with Progress Token
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "scan_repository",
+    "arguments": {
+      "repo": "my-org/my-repo"
+    },
+    "meta": {
+      "progressToken": "progress-123"
+    }
+  }
+}
+```
+
+### Example: Progress Notification
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "notifications/progress",
+  "params": {
+    "progressToken": "progress-123",
+    "progress": 60,
+    "total": 100,
+    "message": "Scanned 600 out of 1000 files"
+  }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| **progressToken** | Matches the token from the original request |
+| **progress** | Current progress value (e.g., 60) |
+| **total** | Total work units (e.g., 100) |
+| **message** | Human-readable status message |
+
+### Example Scenario
+
+**Task:** Scan all files in a repository for security vulnerabilities.
+
+**Progress Updates:**
+1. "Scanned 200 out of 1000 files" (20%)
+2. "Scanned 400 out of 1000 files" (40%)
+3. "Scanned 600 out of 1000 files" (60%)
+4. "Scanned 800 out of 1000 files" (80%)
+5. "Scanned 1000 out of 1000 files" (100%)
+6. Final result: "Found 3 vulnerabilities in 2 files"
+
+### Benefits of Progress Notifications
+
+| Benefit | Explanation |
+|---------|-------------|
+| **Better User Experience** | Users see that work is happening |
+| **Expectation Management** | Users know roughly how long to wait |
+| **Transparency** | Users understand what the system is doing |
+| **Reduced Anxiety** | Users don't wonder if the system crashed |
+
+### Example from Real World
+
+This is similar to what you see in ChatGPT or other AI assistants when they do research:
+
+```
+🔍 Researching...  [████████░░░░░░░░░░░░] 40%
+🔍 Researching...  [████████████████░░░░] 80%
+✅ Research complete!
+```
+
+---
+
+## 7. Flow Diagrams
+
+### Diagram 1: Ping Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    PING FLOW                                           │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ┌─────────────┐                    ┌─────────────┐                   │
+│   │   Client    │                    │   Server    │                   │
+│   └──────┬──────┘                    └──────┬──────┘                   │
+│          │                                   │                         │
+│          │  1. Ping Request                 │                         │
+│          │─────────────────────────────────▶│                         │
+│          │  {                                │                         │
+│          │    "method": "ping"              │                         │
+│          │    "id": 5                       │                         │
+│          │  }                                │                         │
+│          │                                   │                         │
+│          │  2. Ping Response                │                         │
+│          │◀─────────────────────────────────│                         │
+│          │  {                                │                         │
+│          │    "id": 5                       │                         │
+│          │    "result": {}                  │                         │
+│          │  }                                │                         │
+│          │                                   │                         │
+│          │  ✅ Connection is alive!         │                         │
+│          │                                   │                         │
+│   Note: Client → Server OR Server → Client  │                         │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Diagram 2: Error Handling Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    ERROR HANDLING FLOW                                 │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ┌─────────────┐                    ┌─────────────┐                   │
+│   │   Client    │                    │   Server    │                   │
+│   └──────┬──────┘                    └──────┬──────┘                   │
+│          │                                   │                         │
+│          │  1. Invalid Request              │                         │
+│          │─────────────────────────────────▶│                         │
+│          │  {                                │                         │
+│          │    "method": "unknown_method"    │                         │
+│          │    "id": 3                       │                         │
+│          │  }                                │                         │
+│          │                                   │                         │
+│          │  2. Error Response               │                         │
+│          │◀─────────────────────────────────│                         │
+│          │  {                                │                         │
+│          │    "id": 3,                      │                         │
+│          │    "error": {                    │                         │
+│          │      "code": -32601,            │                         │
+│          │      "message": "Method not     │                         │
+│          │                found"            │                         │
+│          │    }                              │                         │
+│          │  }                                │                         │
+│          │                                   │                         │
+│          │  ❌ Error properly handled       │                         │
+│          │                                   │                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Diagram 3: Timeout and Cancellation Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    TIMEOUT & CANCELLATION FLOW                         │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ┌─────────────┐                    ┌─────────────┐                   │
+│   │   Client    │                    │   Server    │                   │
+│   └──────┬──────┘                    └──────┬──────┘                   │
+│          │                                   │                         │
+│          │  1. Client sets timeout: 30s     │                         │
+│          │                                   │                         │
+│          │  2. Request (long-running)       │                         │
+│          │─────────────────────────────────▶│                         │
+│          │  {                                │                         │
+│          │    "id": 7,                      │                         │
+│          │    "method": "scan_all_files"   │                         │
+│          │  }                                │                         │
+│          │                                   │                         │
+│          │  3. Server starts processing...  │                         │
+│          │                                   │ (takes > 30s)         │
+│          │                                   │                         │
+│          │  4. Timeout exceeded (30s)       │                         │
+│          │                                   │                         │
+│          │  5. Cancellation Notification    │                         │
+│          │─────────────────────────────────▶│                         │
+│          │  {                                │                         │
+│          │    "method": "notifications/     │                         │
+│          │                cancelled",        │                         │
+│          │    "params": {                   │                         │
+│          │      "requestId": 7,             │                         │
+│          │      "reason": "Timeout: 30s"   │                         │
+│          │    }                              │                         │
+│          │  }                                │                         │
+│          │                                   │                         │
+│          │  6. Server stops processing      │                         │
+│          │                                   │                         │
+│          │  7. No response sent             │                         │
+│          │                                   │                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Diagram 4: Progress Notification Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    PROGRESS NOTIFICATION FLOW                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ┌─────────────┐                    ┌─────────────┐                   │
+│   │   Client    │                    │   Server    │                   │
+│   └──────┬──────┘                    └──────┬──────┘                   │
+│          │                                   │                         │
+│          │  1. Request with progress token  │                         │
+│          │─────────────────────────────────▶│                         │
+│          │  {                                │                         │
+│          │    "id": 10,                     │                         │
+│          │    "method": "scan_repo",        │                         │
+│          │    "meta": {                     │                         │
+│          │      "progressToken": "scan-1"  │                         │
+│          │    }                              │                         │
+│          │  }                                │                         │
+│          │                                   │                         │
+│          │  2. Progress Notification 1      │                         │
+│          │◀─────────────────────────────────│                         │
+│          │  {                                │                         │
+│          │    "method": "notifications/     │                         │
+│          │                progress",         │                         │
+│          │    "params": {                   │                         │
+│          │      "progressToken": "scan-1", │                         │
+│          │      "progress": 20,             │                         │
+│          │      "total": 100,               │                         │
+│          │      "message": "Scanned 20/100"│                         │
+│          │    }                              │                         │
+│          │  }                                │                         │
+│          │                                   │                         │
+│          │  3. Progress Notification 2      │                         │
+│          │◀─────────────────────────────────│                         │
+│          │  { "progress": 50, ... }         │                         │
+│          │                                   │                         │
+│          │  4. Progress Notification 3      │                         │
+│          │◀─────────────────────────────────│                         │
+│          │  { "progress": 80, ... }         │                         │
+│          │                                   │                         │
+│          │  5. Final Result                 │                         │
+│          │◀─────────────────────────────────│                         │
+│          │  {                                │                         │
+│          │    "id": 10,                     │                         │
+│          │    "result": "Found 3 issues"    │                         │
+│          │  }                                │                         │
+│          │                                   │                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Diagram 5: All Special Cases Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    SPECIAL CASES OVERVIEW                              │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │                     PINGS                                        │  │
+│   │  • Lightweight request-response                                 │  │
+│   │  • Check if other side is alive                                 │  │
+│   │  • Keep connection alive                                        │  │
+│   │  • Bi-directional (both sides can ping)                         │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │                     ERROR HANDLING                              │  │
+│   │  • Uses JSON-RPC standard error objects                        │  │
+│   │  • code, message, data fields                                  │  │
+│   │  • Common codes: -32601 (Method Not Found), -32602 (Invalid   │  │
+│   │    Params), -32700 (Parse Error)                               │  │
+│   │  • 32000+ for server-specific errors                          │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │                     TIMEOUTS                                    │  │
+│   │  • Prevent requests from hanging forever                       │  │
+│   │  • Set threshold (e.g., 30 seconds)                            │  │
+│   │  • Trigger cancellation when exceeded                          │  │
+│   │  • Free up resources                                           │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │                     CANCELLATION                                │  │
+│   │  • Stop long-running request before completion                 │  │
+│   │  • Send notifications/cancelled notification                   │  │
+│   │  • Include requestId and reason                                │  │
+│   │  • Server stops processing and sends no response               │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │                     PROGRESS NOTIFICATIONS                      │  │
+│   │  • Real-time feedback for long-running tasks                   │  │
+│   │  • Client sends progressToken in metadata                      │  │
+│   │  • Server sends notifications/progress messages                │  │
+│   │  • Includes progress, total, and message                       │  │
+│   │  • Better user experience                                      │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 8. Code Examples
+
+### Example 1: Ping Request and Response
+
+```python
+# Ping Request (Client → Server or Server → Client)
+ping_request = {
+    "jsonrpc": "2.0",
+    "id": 999,
+    "method": "ping"
+}
+
+# Ping Response
+ping_response = {
+    "jsonrpc": "2.0",
+    "id": 999,
+    "result": {}
+}
+
+# Usage: Check if server is alive before full initialization
+def check_server_alive():
+    response = send_request(ping_request)
+    return response is not None
+```
+
+### Example 2: Error Object Creation
+
+```python
+# Creating a standard error object
+def create_error(code, message, data=None):
+    return {
+        "jsonrpc": "2.0",
+        "id": request_id,  # Must match original request
+        "error": {
+            "code": code,
+            "message": message
+        }
+    }
+    if data:
+        error_response["error"]["data"] = data
+    return error_response
+
+# Usage:
+# Method Not Found
+error_response = create_error(-32601, "Method not found")
+
+# Invalid Parameters
+error_response = create_error(-32602, "Invalid parameters", 
+                             {"expected": "file_path", "received": "directory"})
+
+# Parse Error
+error_response = create_error(-32700, "Parse error")
+```
+
+### Example 3: Common Error Codes with Explanations
+
+```python
+# Mapping of common error codes
+error_codes = {
+    -32700: {
+        "name": "Parse error",
+        "description": "Invalid JSON was received by the server"
+    },
+    -32600: {
+        "name": "Invalid Request",
+        "description": "The JSON sent is not a valid Request object"
+    },
+    -32601: {
+        "name": "Method not found",
+        "description": "The method does not exist / is not available"
+    },
+    -32602: {
+        "name": "Invalid params",
+        "description": "Invalid method parameter(s)"
+    },
+    32000: {
+        "name": "Authentication failure",
+        "description": "User is not authenticated"
+    },
+    32001: {
+        "name": "Rate limit exceeded",
+        "description": "Too many requests in a short time"
+    },
+    32002: {
+        "name": "Quota exceeded",
+        "description": "User has exceeded their quota"
+    },
+    32003: {
+        "name": "Internal error",
+        "description": "Server-side error"
+    }
+}
+
+def handle_error(error_code, request_id):
+    """Handle an error based on its code"""
+    if error_code in error_codes:
+        error_info = error_codes[error_code]
+        return {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "error": {
+                "code": error_code,
+                "message": error_info["description"]
+            }
+        }
+    else:
+        # Unknown error
+        return {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "error": {
+                "code": -32000,
+                "message": "Unknown error occurred"
+            }
+        }
+```
+
+### Example 4: Timeout Implementation
+
+```python
+import time
+import threading
+
+class MCPClientWithTimeout:
+    def __init__(self, default_timeout=30):
+        self.default_timeout = default_timeout
+        self.pending_requests = {}
+    
+    def send_request_with_timeout(self, request, timeout=None):
+        """Send a request with a timeout"""
+        if timeout is None:
+            timeout = self.default_timeout
+        
+        request_id = request.get("id")
+        # Store request with start time
+        self.pending_requests[request_id] = {
+            "request": request,
+            "start_time": time.time(),
+            "timeout": timeout,
+            "completed": False
+        }
+        
+        # Send the request
+        self.send_to_server(request)
+        
+        # Start timeout timer
+        timer = threading.Timer(timeout, self._handle_timeout, args=[request_id])
+        timer.start()
+    
+    def _handle_timeout(self, request_id):
+        """Handle timeout for a specific request"""
+        if request_id in self.pending_requests:
+            request_info = self.pending_requests[request_id]
+            if not request_info["completed"]:
+                # Send cancellation notification
+                cancel_request = {
+                    "jsonrpc": "2.0",
+                    "method": "notifications/cancelled",
+                    "params": {
+                        "requestId": request_id,
+                        "reason": f"Timeout exceeded: {request_info['timeout']} seconds"
+                    }
+                }
+                self.send_to_server(cancel_request)
+                
+                # Mark as completed (timed out)
+                request_info["completed"] = True
+                print(f"⏰ Request {request_id} timed out after {request_info['timeout']}s")
+```
+
+### Example 5: Cancellation Notification
+
+```python
+# Client sends cancellation notification
+def cancel_request(request_id, reason=None):
+    cancel_notification = {
+        "jsonrpc": "2.0",
+        "method": "notifications/cancelled",
+        "params": {
+            "requestId": request_id
+        }
+    }
+    if reason:
+        cancel_notification["params"]["reason"] = reason
+    
+    return cancel_notification
+
+# Usage:
+cancel = cancel_request(7, "User cancelled the operation")
+# Send to server
+
+# Server side: Stop processing when receiving cancellation
+def on_cancellation_received(params):
+    request_id = params.get("requestId")
+    reason = params.get("reason", "No reason provided")
+    
+    # Find the request in progress
+    if request_id in self.active_requests:
+        print(f"🛑 Cancelling request {request_id}: {reason}")
+        # Stop processing
+        self.active_requests[request_id]["processing"] = False
+        # Clean up resources
+        self.cleanup_request(request_id)
+```
+
+### Example 6: Progress Notifications
+
+```python
+# Client: Request with progress token
+def request_with_progress(tool_name, arguments, progress_token):
+    return {
+        "jsonrpc": "2.0",
+        "id": self.next_id(),
+        "method": "tools/call",
+        "params": {
+            "name": tool_name,
+            "arguments": arguments,
+            "meta": {
+                "progressToken": progress_token
+            }
+        }
+    }
+
+# Server: Sending progress notifications
+def send_progress_update(progress_token, current, total, message=None):
+    progress_notification = {
+        "jsonrpc": "2.0",
+        "method": "notifications/progress",
+        "params": {
+            "progressToken": progress_token,
+            "progress": current,
+            "total": total
+        }
+    }
+    if message:
+        progress_notification["params"]["message"] = message
+    
+    send_to_client(progress_notification)
+
+# Example: Scanning files
+def scan_files(repo_name, progress_token):
+    files = get_all_files(repo_name)
+    total_files = len(files)
+    issues_found = []
+    
+    for i, file in enumerate(files):
+        # Process file
+        if has_vulnerability(file):
+            issues_found.append(file)
+        
+        # Send progress update every 10 files
+        if i % 10 == 0 or i == total_files - 1:
+            progress_percent = int((i + 1) / total_files * 100)
+            send_progress_update(
+                progress_token,
+                i + 1,
+                total_files,
+                f"Scanned {i+1}/{total_files} files ({progress_percent}%)"
+            )
+    
+    # Return final result
+    return {
+        "total_files": total_files,
+        "vulnerabilities": len(issues_found),
+        "vulnerable_files": issues_found
+    }
+
+# Client side: Handling progress notifications
+def on_progress_notification(params):
+    progress_token = params["progressToken"]
+    current = params["progress"]
+    total = params["total"]
+    message = params.get("message", "")
+    
+    # Calculate percentage
+    percent = int((current / total) * 100)
+    progress_bar = "█" * (percent // 5) + "░" * (20 - percent // 5)
+    
+    # Display to user
+    print(f"⏳ {message or 'Progress'}")
+    print(f"   [{progress_bar}] {percent}%")
+    print(f"   {current}/{total} complete")
+```
+
+### Example 7: Complete Special Cases Handler
+
+```python
+class MCPSpecialCases:
+    """Handler for all MCP special cases"""
+    
+    def __init__(self):
+        self.active_requests = {}
+        self.progress_tokens = {}
+    
+    def handle_ping(self, request):
+        """Handle ping request"""
+        return {
+            "jsonrpc": "2.0",
+            "id": request["id"],
+            "result": {}
+        }
+    
+    def handle_error(self, request_id, code, message, data=None):
+        """Generate error response"""
+        return {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "error": {
+                "code": code,
+                "message": message
+            }
+        }
+    
+    def handle_cancellation(self, params):
+        """Handle cancellation notification"""
+        request_id = params.get("requestId")
+        reason = params.get("reason", "Cancelled")
+        
+        if request_id in self.active_requests:
+            print(f"🛑 Cancelling request {request_id}: {reason}")
+            self.active_requests[request_id]["cancelled"] = True
+            # Clean up
+            self.cleanup_active_request(request_id)
+    
+    def send_progress(self, progress_token, current, total, message):
+        """Send progress notification"""
+        notification = {
+            "jsonrpc": "2.0",
+            "method": "notifications/progress",
+            "params": {
+                "progressToken": progress_token,
+                "progress": current,
+                "total": total,
+                "message": message
+            }
+        }
+        # Send to client
+        self.send_to_client(notification)
+```
+
+---
+
+## 9. Key Pointers Summary
+
+| Concept | Key Points |
+|---------|------------|
+| **Pings** | Lightweight keep-alive; bi-directional; no data in result |
+| **Error Handling** | Uses JSON-RPC standard; code + message + optional data |
+| **Timeouts** | Prevent hanging; set threshold; trigger cancellation |
+| **Cancellation** | Stop request before completion; no response sent |
+| **Progress Notifications** | Real-time feedback; requires progress token; better UX |
+
+### Important Rules:
+
+| Rule | Explanation |
+|------|-------------|
+| **Ping is allowed during initialization** | Only ping messages can be exchanged before full initialization |
+| **Ping is bi-directional** | Both client and server can initiate pings |
+| **No JSON-RPC during shutdown** | Shutdown is handled by the transport layer |
+| **Error codes are JSON-RPC standard** | MCP inherits JSON-RPC error codes |
+| **Timeouts must be client-side** | Clients are responsible for setting timeouts |
+| **Cancellation requires requestId** | Must match the original request ID |
+| **Progress requires token** | Must include progressToken in request metadata |
+
+### When to Use Each Special Case:
+
+| Scenario | Use |
+|----------|-----|
+| **Checking if server is alive** | Ping |
+| **API version mismatch** | Error (Invalid Request) |
+| **Calling unknown method** | Error (Method Not Found) |
+| **Request taking too long** | Timeout + Cancellation |
+| **User wants to stop operation** | Cancellation |
+| **Long-running task** | Progress Notifications |
+| **Idle connection** | Periodic Pings |
+
+---
+
+## 10. Quick Reference: JSON-RPC Error Codes
+
+```
+-32700  Parse Error           ─── Invalid JSON
+-32600  Invalid Request       ─── Invalid Request Object
+-32601  Method Not Found      ─── Method doesn't exist
+-32602  Invalid Params        ─── Invalid parameters
+-32603  Internal Error        ─── Internal server error
+  32000+ Server-specific      ─── Auth, rate limit, quota, etc.
+```
+
+---
+
+## Summary
+
+The **MCP Lifecycle Special Cases** cover all the edge situations that can occur during a session:
+
+1. **Pings** keep the connection alive
+2. **Error Handling** communicates failures
+3. **Timeouts** prevent infinite waits
+4. **Cancellation** stops unwanted requests
+5. **Progress Notifications** provide real-time feedback
+
+These features make MCP **robust, reliable, and user-friendly** - ensuring that even in exceptional situations, the system behaves predictably and communicates clearly.
+
+---
+
+## 05. Model Context Protocol | The How | How to connect MCP Servers to Claude Desktop (46:16)
 
 summaries this MCP tutorial transcript in simple words with all detail along with flow diagrams, also make note of all important pointers and explain each important concepts with basic code examples
