@@ -2763,4 +2763,935 @@ MCP's genius is **separating WHAT is said (JSON-RPC messages) from HOW it's deli
 
 ## 04. The MCP Lifecycle | MCP Trilogy (55:04)
 
+This part covers the **MCP Lifecycle** - the complete sequence of steps that govern how a host and server establish, use, and end a connection during a session. It includes **practical demos** showing JSON-RPC messages in action.
+
+---
+
+## 📖 Table of Contents
+1. [What is MCP Lifecycle?](#1-what-is-mcp-lifecycle)
+2. [The Three Phases](#2-the-three-phases)
+3. [Phase 1: Initialization](#3-phase-1-initialization)
+   - Step 1: Initialize Request
+   - Step 2: Server Response
+   - Step 3: Initialized Notification
+   - Important Rules
+4. [Version Negotiation](#4-version-negotiation)
+5. [Capability Negotiation](#5-capability-negotiation)
+   - Client Capabilities
+   - Server Capabilities
+   - Sub-Capabilities
+6. [Phase 2: Operation](#6-phase-2-operation)
+   - Capability Discovery
+   - Tool Calling
+7. [Phase 3: Shutdown](#7-phase-3-shutdown)
+8. [Practical Demo Walkthrough](#8-practical-demo-walkthrough)
+9. [Flow Diagrams](#9-flow-diagrams)
+10. [Key Pointers Summary](#10-key-pointers-summary)
+
+---
+
+## 1. What is MCP Lifecycle?
+
+**Definition:**
+> The MCP Lifecycle describes the complete sequence of steps that govern how a host and a server establish, use, and end a connection during a session.
+
+### What is a Session?
+A **session** is one continuous connection between a client and a server.
+
+**Example:**
+- You start Claude Desktop (Host)
+- Behind the scenes, Claude Desktop connects to your GitHub MCP Server
+- Until you close Claude Desktop, there is a **continuous connection** between them
+- That continuous connection is the **session**
+
+---
+
+## 2. The Three Phases
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        MCP LIFECYCLE                                   │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐ │
+│   │                  │    │                  │    │                  │ │
+│   │  INITIALIZATION  │───▶│   OPERATION      │───▶│   SHUTDOWN       │ │
+│   │                  │    │                  │    │                  │ │
+│   │  - Handshake     │    │  - Discovery     │    │  - End Session   │ │
+│   │  - Version Check │    │  - Tool Calls    │    │  - Close Client  │ │
+│   │  - Capability    │    │  - Resource      │    │  - Close Server  │ │
+│   │    Negotiation   │    │    Access        │    │                  │ │
+│   └──────────────────┘    └──────────────────┘    └──────────────────┘ │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+| Phase | Description |
+|-------|-------------|
+| **Initialization** | First interaction; handshake between client and server |
+| **Operation** | Normal communication; exchanging messages and performing tasks |
+| **Shutdown** | Ending the session; closing connections |
+
+---
+
+## 3. Phase 1: Initialization
+
+> **The Initialization Phase MUST be the first interaction between the client and the server.**
+
+### What happens during initialization?
+
+1. **Version Compatibility Check** - Ensure both use same MCP protocol version
+2. **Capability Exchange & Negotiation** - Each party tells the other what it can do
+
+### Step 1: Initialize Request
+
+The **client** sends an `initialize` request to the server.
+
+**JSON-RPC Message:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 0,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "0.1.0",
+    "capabilities": {
+      "roots": {
+        "listChanged": true
+      },
+      "sampling": {}
+    },
+    "clientInfo": {
+      "name": "Claude AI",
+      "version": "1.0.0"
+    }
+  }
+}
+```
+
+**What's being sent:**
+
+| Field | Description |
+|-------|-------------|
+| `protocolVersion` | Client's MCP protocol version |
+| `capabilities.roots` | Client gives server access to its directory structure |
+| `capabilities.sampling` | Server can ask client to use its AI for tasks |
+| `clientInfo` | Client's name and version |
+
+---
+
+### Step 2: Server Response
+
+The **server** responds with its own details.
+
+**JSON-RPC Response:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 0,
+  "result": {
+    "protocolVersion": "0.1.0",
+    "capabilities": {
+      "tools": {}
+    },
+    "serverInfo": {
+      "name": "secure-filesystem-server",
+      "version": "2.0.0"
+    }
+  }
+}
+```
+
+**What's being sent:**
+
+| Field | Description |
+|-------|-------------|
+| `protocolVersion` | Server's MCP protocol version |
+| `capabilities` | What the server offers (tools, resources, prompts) |
+| `serverInfo` | Server's name and version |
+
+---
+
+### Step 3: Initialized Notification
+
+After successful exchange, the client sends a notification that the connection is ready.
+
+**JSON-RPC Notification:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "notifications/initialized"
+}
+```
+
+> ⚠️ **Important:** This is a **notification**, not a request. It has no `id`.
+
+---
+
+### Important Rules
+
+| Rule | Description |
+|------|-------------|
+| **Rule 1** | Client cannot send any requests (except pings) until server responds to `initialize` |
+| **Rule 2** | Server cannot send any requests (except pings and logging) until it receives `initialized` notification |
+
+**Allowed during initialization:** Only `ping` and `logging` messages.
+
+**Not allowed:** Any tool calls, resource reads, or prompt retrievals.
+
+---
+
+## 4. Version Negotiation
+
+When client and server have **different protocol versions**, they negotiate.
+
+### How it works:
+
+1. Client sends its `protocolVersion` in initialize request
+2. Server sends its `protocolVersion` in response
+3. Client checks if server's version is in its **supported versions list**
+4. If **yes** → Continue (send initialized notification)
+5. If **no** → Disconnect immediately
+
+### Example of Version Mismatch:
+
+```
+Client sends: protocolVersion: "0.1.0"
+Server responds: protocolVersion: "0.2.0"
+Client checks: Is "0.2.0" in my supported list?
+  ✅ Yes → Continue
+  ❌ No → Disconnect
+```
+
+---
+
+## 5. Capability Negotiation
+
+> "Client and server establish which protocol features will be available during the session."
+
+### Client Capabilities
+
+| Capability | Description | Example |
+|------------|-------------|---------|
+| **Roots** | Client gives server access to its base directory | Cursor gives project folder access to filesystem server |
+| **Sampling** | Server can ask client to use its AI for help | Server asks client: "Summarize these 1000 documents for me" |
+| **Elicitation** | Server can request missing information from client | Server: "I need your GitHub API key to proceed" |
+
+### Server Capabilities
+
+| Capability | Description | Example |
+|------------|-------------|---------|
+| **Tools** | Functions the client can call | `read_file()`, `create_issue()` |
+| **Resources** | Static data the client can read | Database schemas, documents |
+| **Prompts** | Templates for how to use the server | "How to create a new file" |
+| **Logging** | Server sends periodic status updates | "Booking: Form filled → Payment done → Confirmed" |
+
+### Sub-Capabilities
+
+| Sub-Capability | Description |
+|----------------|-------------|
+| **listChanged** | Server notifies client when list of tools/resources changes |
+| **subscribe** | Client subscribes to specific resource changes |
+
+**Example:**
+- Initially, server has 5 tools
+- During session, a new tool is added
+- Server sends `listChanged` notification to client
+- Client updates its list of available tools
+
+---
+
+## 6. Phase 2: Operation
+
+> During the operation phase, client and server exchange messages according to negotiated capabilities.
+
+### Two Parts of Operation:
+
+#### Part 1: Capability Discovery
+
+Client asks the server **exactly** what tools, resources, and prompts are available.
+
+**Requests:**
+```json
+// Discover tools
+{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
+
+// Discover resources
+{"jsonrpc": "2.0", "id": 2, "method": "resources/list"}
+
+// Discover prompts
+{"jsonrpc": "2.0", "id": 3, "method": "prompts/list"}
+```
+
+**Response Example (tools/list):**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "tools": [
+      {
+        "name": "read_file",
+        "description": "Read contents of a file",
+        "parameters": {
+          "path": {"type": "string", "description": "File path"}
+        }
+      },
+      {
+        "name": "write_file",
+        "description": "Write content to a file",
+        "parameters": {
+          "path": {"type": "string"},
+          "content": {"type": "string"}
+        }
+      }
+    ]
+  }
+}
+```
+
+> ⚡ **Important:** Capability discovery happens **automatically** right after initialization completes.
+
+---
+
+#### Part 2: Tool Calling
+
+Client calls a specific tool with required arguments.
+
+**Request (tools/call):**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "method": "tools/call",
+  "params": {
+    "name": "read_file",
+    "arguments": {
+      "path": "/Desktop/hello.py"
+    }
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "result": {
+    "content": "print('Hello, World!')"
+  }
+}
+```
+
+---
+
+## 7. Phase 3: Shutdown
+
+Ending the session happens when:
+
+| Scenario | How |
+|----------|-----|
+| **Client closes** | User quits the application (Claude Desktop, Cursor, etc.) |
+| **Server closes** | Server terminates (less common, often out of client control) |
+| **Network failure** | Connection breaks |
+
+**What happens:** The continuous connection between client and server is broken.
+
+---
+
+## 8. Practical Demo Walkthrough
+
+### Setup
+- **Client:** Claude Desktop
+- **Server:** File System MCP Server (local)
+- **Transport:** stdio (Standard Input/Output)
+- **Goal:** Read a file from Desktop
+
+### What Happens Step-by-Step:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    PRACTICAL DEMO FLOW                                │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  1. User starts Claude Desktop                                         │
+│     │                                                                    │
+│     ▼                                                                    │
+│  2. INITIALIZATION PHASE (Automatic)                                    │
+│     ├── Client → Server: initialize (protocolVersion, capabilities)    │
+│     ├── Server → Client: Response (protocolVersion, capabilities)      │
+│     └── Client → Server: notifications/initialized                     │
+│     │                                                                    │
+│     ▼                                                                    │
+│  3. CAPABILITY DISCOVERY (Automatic)                                    │
+│     ├── Client → Server: tools/list                                    │
+│     ├── Server → Client: [list of all tools]                           │
+│     ├── Client → Server: resources/list (optional)                     │
+│     └── Client → Server: prompts/list (optional)                       │
+│     │                                                                    │
+│     ▼                                                                    │
+│  4. USER QUERY: "What's in hello.py on my desktop?"                    │
+│     │                                                                    │
+│     ▼                                                                    │
+│  5. TOOL CALLING                                                        │
+│     ├── Client → Server: tools/call (read_file, path=Desktop/hello.py) │
+│     └── Server → Client: Content of hello.py                           │
+│     │                                                                    │
+│     ▼                                                                    │
+│  6. Claude displays the result to user                                 │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Actual JSON-RPC Messages Seen in Demo:
+
+**1. Initialize Request:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 0,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2024-11-05",
+    "capabilities": {},
+    "clientInfo": {
+      "name": "Claude AI",
+      "version": "1.0.0"
+    }
+  }
+}
+```
+
+**2. Server Response:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 0,
+  "result": {
+    "protocolVersion": "2025-03-26",
+    "capabilities": {
+      "tools": {}
+    },
+    "serverInfo": {
+      "name": "secure-filesystem-server",
+      "version": "2.0.0"
+    }
+  }
+}
+```
+
+**3. Initialized Notification:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "notifications/initialized"
+}
+```
+
+**4. Tools List Request:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/list"
+}
+```
+
+**5. Tools List Response (Partial):**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "tools": [
+      {"name": "read_file", "description": "Read contents of a file"},
+      {"name": "write_file", "description": "Write content to a file"},
+      {"name": "edit_file", "description": "Edit file contents"},
+      {"name": "create_directory", "description": "Create a new directory"},
+      {"name": "list_directory", "description": "List directory contents"},
+      {"name": "directory_tree", "description": "Get directory tree"}
+    ]
+  }
+}
+```
+
+**6. Tool Call (read_file):**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "method": "tools/call",
+  "params": {
+    "name": "read_file",
+    "arguments": {
+      "path": "/Users/nitesh/Desktop/hello.py"
+    }
+  }
+}
+```
+
+**7. Tool Call Response:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "result": {
+    "content": "print('Hello, World!')"
+  }
+}
+```
+
+---
+
+## 9. Flow Diagrams
+
+### Diagram 1: MCP Lifecycle (Complete)
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    MCP LIFECYCLE (Complete)                            │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   USER STARTS CLIENT (e.g., Claude Desktop)                           │
+│           │                                                             │
+│           ▼                                                             │
+│   ┌─────────────────────────────────────────────────────────────┐      │
+│   │                  PHASE 1: INITIALIZATION                    │      │
+│   │                                                             │      │
+│   │   Client ──────► Server: initialize request                 │      │
+│   │   (Version, Capabilities, ClientInfo)                       │      │
+│   │                                                             │      │
+│   │   Client ◄────── Server: initialize response                │      │
+│   │   (Version, Capabilities, ServerInfo)                       │      │
+│   │                                                             │      │
+│   │   Client ──────► Server: notifications/initialized          │      │
+│   │                                                             │      │
+│   │   ⚠️ RULES: Only pings & logs allowed before this           │      │
+│   └──────────────────────────┬──────────────────────────────────┘      │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌─────────────────────────────────────────────────────────────┐      │
+│   │                    PHASE 2: OPERATION                       │      │
+│   │                                                             │      │
+│   │   ┌──────────────────────────────────────────────────┐     │      │
+│   │   │  Part A: Capability Discovery (Automatic)       │     │      │
+│   │   │  Client → Server: tools/list                    │     │      │
+│   │   │  Client → Server: resources/list                │     │      │
+│   │   │  Client → Server: prompts/list                  │     │      │
+│   │   │  Server → Client: [lists of all tools/resources]│     │      │
+│   │   └──────────────────────────────────────────────────┘     │      │
+│   │                                                             │      │
+│   │   ┌──────────────────────────────────────────────────┐     │      │
+│   │   │  Part B: Tool/Resource/Prompt Usage             │     │      │
+│   │   │  Client → Server: tools/call (with arguments)   │     │      │
+│   │   │  Server → Client: Result (data/action output)   │     │      │
+│   │   └──────────────────────────────────────────────────┘     │      │
+│   └──────────────────────────┬──────────────────────────────────┘      │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌─────────────────────────────────────────────────────────────┐      │
+│   │                  PHASE 3: SHUTDOWN                          │      │
+│   │                                                             │      │
+│   │   • User closes Client                                     │      │
+│   │   • OR Server terminates                                   │      │
+│   │   • OR Network failure                                     │      │
+│   │                                                             │      │
+│   │   Result: Session ends, connection closes                  │      │
+│   └─────────────────────────────────────────────────────────────┘      │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Diagram 2: Initialization Phase (Detailed)
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    INITIALIZATION PHASE (Detailed)                     │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   CLIENT (Claude Desktop)              SERVER (Filesystem)             │
+│        │                                      │                         │
+│        │  STEP 1: initialize request          │                         │
+│        │─────────────────────────────────────▶│                         │
+│        │  {                                   │                         │
+│        │    "method": "initialize",           │                         │
+│        │    "protocolVersion": "2024-11-05", │                         │
+│        │    "capabilities": {},              │                         │
+│        │    "clientInfo": {...}              │                         │
+│        │  }                                   │                         │
+│        │                                      │                         │
+│        │  STEP 2: initialize response         │                         │
+│        │◀─────────────────────────────────────│                         │
+│        │  {                                   │                         │
+│        │    "protocolVersion": "2025-03-26", │                         │
+│        │    "capabilities": {"tools": {}},   │                         │
+│        │    "serverInfo": {...}              │                         │
+│        │  }                                   │                         │
+│        │                                      │                         │
+│        │  ⚠️ Version Negotiation Check        │                         │
+│        │  Does server version match?          │                         │
+│        │  ✅ YES → Continue                  │                         │
+│        │  ❌ NO  → Disconnect                │                         │
+│        │                                      │                         │
+│        │  STEP 3: initialized notification    │                         │
+│        │─────────────────────────────────────▶│                         │
+│        │  {                                   │                         │
+│        │    "method": "notifications/initialized"│                     │
+│        │  }                                   │                         │
+│        │                                      │                         │
+│        │  ✅ SESSION ESTABLISHED              │                         │
+│        │                                      │                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Diagram 3: Operation Phase (Detailed)
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    OPERATION PHASE (Detailed)                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   CLIENT (Claude Desktop)              SERVER (Filesystem)             │
+│        │                                      │                         │
+│        │  PART A: Capability Discovery        │                         │
+│        │                                      │                         │
+│        │  tools/list request                  │                         │
+│        │─────────────────────────────────────▶│                         │
+│        │                                      │                         │
+│        │  tools/list response                 │                         │
+│        │◀─────────────────────────────────────│                         │
+│        │  "tools": [                          │                         │
+│        │    {"name": "read_file"},            │                         │
+│        │    {"name": "write_file"},           │                         │
+│        │    {"name": "edit_file"},            │                         │
+│        │    ...                              │                         │
+│        │  ]                                   │                         │
+│        │                                      │                         │
+│        │  PART B: Tool Usage (User Query)     │                         │
+│        │                                      │                         │
+│        │  User: "Read hello.py"               │                         │
+│        │                                      │                         │
+│        │  tools/call request                  │                         │
+│        │─────────────────────────────────────▶│                         │
+│        │  {                                   │                         │
+│        │    "name": "read_file",              │                         │
+│        │    "arguments": {                    │                         │
+│        │      "path": "/Desktop/hello.py"     │                         │
+│        │    }                                 │                         │
+│        │  }                                   │                         │
+│        │                                      │                         │
+│        │  tools/call response                 │                         │
+│        │◀─────────────────────────────────────│                         │
+│        │  {                                   │                         │
+│        │    "content": "print('Hello')"       │                         │
+│        │  }                                   │                         │
+│        │                                      │                         │
+│        │  Client displays result to user      │                         │
+│        │                                      │                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Diagram 4: Capability Negotiation Breakdown
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    CAPABILITY NEGOTIATION                               │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │                     CLIENT CAPABILITIES                        │  │
+│   │                                                                 │  │
+│   │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐ │  │
+│   │  │    ROOTS     │  │  SAMPLING    │  │   ELICITATION        │ │  │
+│   │  │              │  │              │  │                      │ │  │
+│   │  │ Client gives │  │ Server can   │  │ Server can request  │ │  │
+│   │  │ server access│  │ ask client   │  │ missing info from   │ │  │
+│   │  │ to directory │  │ to use its   │  │ client (e.g., API   │ │  │
+│   │  │ structure    │  │ AI for tasks │  │ key)                │ │  │
+│   │  └──────────────┘  └──────────────┘  └──────────────────────┘ │  │
+│   │                                                                 │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │                     SERVER CAPABILITIES                        │  │
+│   │                                                                 │  │
+│   │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │  │
+│   │  │    TOOLS     │  │  RESOURCES   │  │   PROMPTS    │       │  │
+│   │  │              │  │              │  │              │       │  │
+│   │  │ Functions    │  │ Static data  │  │ Templates    │       │  │
+│   │  │ client can   │  │ client can   │  │ for using    │       │  │
+│   │  │ call         │  │ read         │  │ the server   │       │  │
+│   │  └──────────────┘  └──────────────┘  └──────────────┘       │  │
+│   │                                                                 │  │
+│   │  ┌──────────────┐                                              │  │
+│   │  │   LOGGING    │                                              │  │
+│   │  │              │                                              │  │
+│   │  │ Server sends │                                              │  │
+│   │  │ status/log   │                                              │  │
+│   │  │ updates      │                                              │  │
+│   │  └──────────────┘                                              │  │
+│   │                                                                 │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │                 SUB-CAPABILITIES (Both Sides)                  │  │
+│   │                                                                 │  │
+│   │  ┌──────────────────────┐  ┌──────────────────────────────┐   │  │
+│   │  │    LIST CHANGED      │  │        SUBSCRIBE             │   │  │
+│   │  │                      │  │                              │   │  │
+│   │  │ Notify when lists of │  │ Notify when specific resource│   │  │
+│   │  │ tools/resources      │  │ changes (e.g., readme.md    │   │  │
+│   │  │ change               │  │ updated on GitHub)           │   │  │
+│   │  └──────────────────────┘  └──────────────────────────────┘   │  │
+│   │                                                                 │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 10. Key Pointers Summary
+
+| Concept | Explanation |
+|---------|-------------|
+| **Lifecycle** | Complete sequence from connection to disconnection |
+| **Session** | One continuous connection between client and server |
+| **Initialization** | First interaction; version check + capability negotiation |
+| **Version Negotiation** | Check if client and server speak same protocol version |
+| **Capabilities** | What each party can do (tools, resources, prompts, logging, etc.) |
+| **Roots** | Client gives server access to its directory structure |
+| **Sampling** | Server can use client's AI for help |
+| **Elicitation** | Server can request missing info from client |
+| **Capability Discovery** | Client asks server for exact list of tools/resources/prompts |
+| **Tool Calling** | Client calls a specific tool with arguments |
+| **Shutdown** | Session ends when client or server closes |
+
+### Important Rules to Remember:
+
+| Rule | Timing | Restriction |
+|------|--------|-------------|
+| Rule 1 | Before server responds to `initialize` | Client can only send pings |
+| Rule 2 | Before client sends `initialized` notification | Server can only send pings and logs |
+| Rule 3 | After initialization | Operation phase begins automatically |
+
+---
+
+## 11. Code Examples
+
+### Example 1: Complete Initialization Sequence
+
+```python
+import json
+
+# Step 1: Client sends initialize request
+initialize_request = {
+    "jsonrpc": "2.0",
+    "id": 0,
+    "method": "initialize",
+    "params": {
+        "protocolVersion": "2024-11-05",
+        "capabilities": {
+            "roots": {"listChanged": True},
+            "sampling": {}
+        },
+        "clientInfo": {
+            "name": "My AI Client",
+            "version": "1.0.0"
+        }
+    }
+}
+
+# Step 2: Server responds
+initialize_response = {
+    "jsonrpc": "2.0",
+    "id": 0,
+    "result": {
+        "protocolVersion": "2024-11-05",
+        "capabilities": {
+            "tools": {},
+            "resources": {}
+        },
+        "serverInfo": {
+            "name": "weather-server",
+            "version": "1.0.0"
+        }
+    }
+}
+
+# Check version compatibility
+client_supported = ["2024-11-05", "2024-10-01"]
+if initialize_response["result"]["protocolVersion"] not in client_supported:
+    print("❌ Version mismatch! Disconnecting.")
+else:
+    print("✅ Version compatible!")
+    
+    # Step 3: Send initialized notification
+    initialized_notification = {
+        "jsonrpc": "2.0",
+        "method": "notifications/initialized"
+    }
+    print("✅ Session established!")
+```
+
+### Example 2: Capability Discovery
+
+```python
+# Client asks for list of tools
+tools_request = {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/list"
+}
+
+# Server responds with tools
+tools_response = {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+        "tools": [
+            {
+                "name": "get_weather",
+                "description": "Get weather for a location",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "location": {"type": "string"}
+                    },
+                    "required": ["location"]
+                }
+            }
+        ]
+    }
+}
+
+# Client asks for resources
+resources_request = {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "resources/list"
+}
+
+# Server response (if no resources)
+resources_response = {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "error": {
+        "code": -32601,
+        "message": "Method not found"
+    }
+}
+```
+
+### Example 3: Tool Calling
+
+```python
+# Client calls a tool
+tool_call_request = {
+    "jsonrpc": "2.0",
+    "id": 3,
+    "method": "tools/call",
+    "params": {
+        "name": "get_weather",
+        "arguments": {
+            "location": "London"
+        }
+    }
+}
+
+# Server responds with result
+tool_call_response = {
+    "jsonrpc": "2.0",
+    "id": 3,
+    "result": {
+        "content": "The weather in London is 18°C and cloudy."
+    }
+}
+```
+
+### Example 4: Concept of Capability Exchange
+
+```python
+# Client capabilities (what client offers)
+client_capabilities = {
+    "roots": True,      # I'll give you access to my directories
+    "sampling": True,   # You can ask me to use my AI
+    "elicitation": True # You can ask me for missing info
+}
+
+# Server capabilities (what server offers)
+server_capabilities = {
+    "tools": True,      # I have functions you can call
+    "resources": True,  # I have data you can read
+    "prompts": True,    # I have templates for using me
+    "logging": True     # I'll send you status updates
+}
+
+# What each side can do after negotiation:
+client_can_use = ["tools", "resources", "prompts"]
+server_can_use = ["roots", "sampling", "elicitation"]
+```
+
+### Example 5: Sub-Capability - listChanged
+
+```json
+// Initial state: Server has 5 tools
+// Then, a new tool is added
+
+// Server sends notification
+{
+  "jsonrpc": "2.0",
+  "method": "notifications/tools/list_changed"
+}
+
+// Client knows to request tools/list again to get updated list
+```
+
+---
+
+## 11. Summary Table
+
+| Phase | Key Action | JSON-RPC Method | Important |
+|-------|------------|-----------------|-----------|
+| **Init 1** | Client sends request | `initialize` | Contains version, capabilities, client info |
+| **Init 2** | Server responds | `initialize` response | Contains version, capabilities, server info |
+| **Init 3** | Client sends notification | `notifications/initialized` | No ID; confirms session is ready |
+| **Operation 1** | Discover tools | `tools/list` | Automatic; happens right after init |
+| **Operation 2** | Discover resources | `resources/list` | Optional; based on capabilities |
+| **Operation 3** | Discover prompts | `prompts/list` | Optional; based on capabilities |
+| **Operation 4** | Call tool | `tools/call` | User-driven; with arguments |
+| **Shutdown** | End session | N/A | Client closes or server terminates |
+
+---
+
+## 12. Key Takeaways
+
+1. **MCP Lifecycle** = The complete flow from connection to disconnection
+
+2. **Three Phases:**
+   - Initialization (Handshake)
+   - Operation (Work)
+   - Shutdown (End)
+
+3. **Initialization is critical:**
+   - Version check first
+   - Capability negotiation second
+   - No other communication allowed until done
+
+4. **Capability Discovery is automatic:**
+   - Client asks for exact list of tools/resources/prompts
+   - This happens right after initialization
+
+5. **Tool Calling is the main work:**
+   - Client sends tool name + arguments
+   - Server executes and returns result
+
+6. **Everything uses JSON-RPC:**
+   - Standard format for all messages
+   - Requests have IDs; notifications don't
+
+---
+
+
 summaries this MCP tutorial transcript in simple words with all detail along with flow diagrams, also make note of all important pointers and explain each important concepts with basic code examples
