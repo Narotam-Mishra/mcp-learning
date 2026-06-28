@@ -3886,9 +3886,7 @@ class MCPClient:
 
 ---
 
-# MCP Tutorial - Part 4B: "Special Cases" - Complete Summary
-
-This transcript covers the **special cases** in the MCP Lifecycle - situations that deviate from the normal flow, including **Pings**, **Error Handling**, **Timeouts**, **Cancellation**, and **Progress Notifications**.
+This tutorial covers the **special cases** in the MCP Lifecycle - situations that deviate from the normal flow, including **Pings**, **Error Handling**, **Timeouts**, **Cancellation**, and **Progress Notifications**.
 
 ---
 
@@ -5778,5 +5776,996 @@ You can start using MCP right now with zero coding:
 | **Next Steps** | Build custom servers and clients |
 
 ---
+
+# MCP Tutorial - Part 6: "Integrating Twitter & Weather MCP Servers" - Complete Summary
+
+This transcript covers the **practical integration** of two more MCP servers with Claude Desktop:
+- **Twitter (X) MCP Server** - Read and post tweets
+- **Weather MCP Server** - Get current weather information
+- **MCP Server Discovery** - Where to find new MCP servers
+
+---
+
+## 📖 Table of Contents
+1. [Twitter MCP Server Setup](#1-twitter-mcp-server-setup)
+2. [Weather MCP Server Setup](#2-weather-mcp-server-setup)
+3. [Discovering New MCP Servers](#3-discovering-new-mcp-servers)
+4. [Flow Diagrams](#4-flow-diagrams)
+5. [Code Examples](#5-code-examples)
+6. [Key Pointers Summary](#6-key-pointers-summary)
+
+---
+
+## 1. Twitter MCP Server Setup
+
+### Important Correction
+
+> ⚠️ **The Twitter MCP server is actually a LOCAL server, not a remote server.**
+
+**Why?** The configuration uses `npx` (Node Package Executor) to install and run the server locally on your machine. Behind the scenes, it downloads the server package via npm.
+
+### What You Need
+
+| Requirement | Details |
+|-------------|---------|
+| **Twitter Developer Account** | Free to create |
+| **API Keys** | From Twitter Developer Portal |
+| **Node.js + npm** | Required to run the server |
+| **Permissions** | Read + Write (for full functionality) |
+
+### Step-by-Step Setup
+
+#### Step 1: Get Twitter Developer Account
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    TWITTER DEVELOPER SETUP                             │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   1. Go to: https://developer.twitter.com                              │
+│                                                                         │
+│   2. Log in with your Twitter/X account                                │
+│                                                                         │
+│   3. Create a Developer Project                                        │
+│                                                                         │
+│   4. Navigate to "Keys and Tokens" section                            │
+│                                                                         │
+│   5. Generate these credentials:                                       │
+│      ├── API Key                                                       │
+│      ├── API Key Secret                                                │
+│      ├── Access Token                                                  │
+│      └── Access Token Secret                                           │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Step 2: Get the Configuration Code
+
+1. Search: "Twitter MCP Server" on Google
+2. Go to the GitHub repository
+3. Copy the configuration code
+
+#### Step 3: Edit Claude Desktop Config
+
+```json
+{
+  "mcpServers": {
+    "twitter": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-twitter"
+      ],
+      "env": {
+        "TWITTER_API_KEY": "your-api-key-here",
+        "TWITTER_API_SECRET": "your-api-secret-here",
+        "TWITTER_ACCESS_TOKEN": "your-access-token-here",
+        "TWITTER_ACCESS_TOKEN_SECRET": "your-access-token-secret-here"
+      }
+    }
+  }
+}
+```
+
+#### Step 4: Add the Configuration
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    ADDING TWITTER TO CLAUDE                            │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   1. Open Claude Desktop                                               │
+│                                                                         │
+│   2. Go to Settings → Developer → Edit Config                         │
+│                                                                         │
+│   3. The config file opens in VS Code (or your editor)                │
+│                                                                         │
+│   4. Inside the "mcpServers" object, add the Twitter configuration    │
+│                                                                         │
+│   5. Replace placeholders with your actual API keys                   │
+│                                                                         │
+│   6. Save the file                                                     │
+│                                                                         │
+│   7. Close and restart Claude Desktop                                  │
+│                                                                         │
+│   8. ✅ Connected!                                                     │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Step 5: Verify Available Tools
+
+After restarting, Claude should show:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    TWITTER MCP TOOLS                                   │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   Available Tools:                                                     │
+│                                                                         │
+│   🔹 search_tweets    - Search for tweets                              │
+│   🔹 post_tweet       - Post a tweet                                   │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Demo: Searching Tweets
+
+**Prompt:**
+> "What are the top tweets on AI this week?"
+
+**Result:**
+- Claude uses the Twitter MCP server
+- Searches for recent AI-related tweets
+- Returns list of top tweets
+
+### Demo: Posting Tweets
+
+**Prompt:**
+> "Post a tweet on my behalf saying: Hello from CampusX"
+
+**Result:**
+- Claude attempts to post a tweet
+- May require **read + write permissions** in Twitter Developer Portal
+
+### Permission Issue (Common Error)
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    PERMISSION ERROR                                    │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ❌ Error: "Unable to post tweet due to authentication error"         │
+│                                                                         │
+│   Root Cause: Twitter app doesn't have write permissions              │
+│                                                                         │
+│   Solution:                                                             │
+│   1. Go to Twitter Developer Portal                                    │
+│   2. Navigate to your App → Settings                                   │
+│   3. Under "User authentication settings"                              │
+│   4. Change permissions from "Read" to "Read and Write"               │
+│   5. Regenerate access tokens                                          │
+│   6. Update the configuration with new tokens                         │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Finding the Path for npm
+
+If the server doesn't work initially, you may need to install `npx`:
+
+```bash
+# Install npm (comes with Node.js)
+# Download from: https://nodejs.org/
+
+# Verify installation
+npx --version
+
+# If not installed, install Node.js first
+# Then the Twitter server will work automatically
+```
+
+---
+
+## 2. Weather MCP Server Setup
+
+### What is the Weather MCP Server?
+
+> A remote MCP server that fetches current weather information using the **WeatherAPI** or **OpenWeatherMap** API.
+
+### Why is it a Remote Server?
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    WHY IT'S A REMOTE SERVER                            │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   The configuration uses `uvx` (UV Package Executor) which:           │
+│                                                                         │
+│   1. Downloads the server package from the internet                   │
+│   2. Runs it directly from the web source                             │
+│   3. No local installation required                                    │
+│                                                                         │
+│   The server code does NOT exist on your machine                      │
+│   It's fetched and executed remotely                                   │
+│                                                                         │
+│   Command: uvwx weather-mcp-server                                    │
+│   Source: GitHub repository path                                       │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### What You Need
+
+| Requirement | Details |
+|-------------|---------|
+| **UV (Python package installer)** | `pip install uv` |
+| **Weather API Key** | From WeatherAPI.com or OpenWeatherMap |
+| **Configuration** | JSON code from GitHub repo |
+
+### Step-by-Step Setup
+
+#### Step 1: Install UV
+
+```bash
+pip install uv
+```
+
+**Alternative installation (if pip doesn't work):**
+```bash
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+#### Step 2: Get Weather API Key
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    GET WEATHER API KEY                                 │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   1. Go to: https://www.weatherapi.com/                                │
+│                                                                         │
+│   2. Sign up for a free account                                        │
+│                                                                         │
+│   3. Navigate to your dashboard                                        │
+│                                                                         │
+│   4. Copy your API key                                                 │
+│                                                                         │
+│   Free tier gives you:                                                 │
+│   • ~15 days of free access                                           │
+│   • 10,000 calls per day                                              │
+│   • Sufficient for testing                                            │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Step 3: Get the Configuration Code
+
+1. Search: "Weather MCP Server" on Google
+2. Go to the GitHub repository
+3. Copy the configuration code
+
+#### Step 4: Edit Claude Desktop Config
+
+```json
+{
+  "mcpServers": {
+    "weather": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/modelcontextprotocol/servers.git",
+        "weather-mcp-server"
+      ],
+      "env": {
+        "WEATHER_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
+
+> ⚠️ **Note:** You may need to replace `uvx` with the full path to `uvx` on your system.
+
+#### Step 5: Find UVX Path
+
+```bash
+which uvx
+# Output: /Users/nitesh/.local/bin/uvx
+```
+
+#### Step 6: Update Configuration with Path
+
+```json
+{
+  "mcpServers": {
+    "weather": {
+      "command": "/Users/nitesh/.local/bin/uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/modelcontextprotocol/servers.git",
+        "weather-mcp-server"
+      ],
+      "env": {
+        "WEATHER_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
+
+#### Step 7: Restart Claude Desktop
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    WEATHER SERVER SETUP STEPS                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   1. Install UV: pip install uv                                       │
+│                                                                         │
+│   2. Get Weather API key from weatherapi.com                          │
+│                                                                         │
+│   3. Copy configuration code from GitHub                              │
+│                                                                         │
+│   4. Open Claude Desktop config file                                   │
+│                                                                         │
+│   5. Add the configuration with your API key                          │
+│                                                                         │
+│   6. Replace "uvx" with full path if needed                           │
+│                                                                         │
+│   7. Save and restart Claude Desktop                                   │
+│                                                                         │
+│   8. ✅ Connected!                                                     │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Demo: Get Weather
+
+**Prompt:**
+> "Can you tell me the current weather of Gurugram?"
+
+**What Should Happen:**
+1. Claude uses the Weather MCP server
+2. Server calls WeatherAPI with your API key
+3. Returns current weather information
+4. Claude displays the result
+
+**Issue Encountered:**
+- There may be API-related errors depending on the implementation
+- Different weather servers may work better than others
+
+### Alternative Weather Server
+
+If the above server doesn't work, try this alternative:
+
+```json
+{
+  "mcpServers": {
+    "weather": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-weather"
+      ],
+      "env": {
+        "OPENWEATHER_API_KEY": "your-key-here"
+      }
+    }
+  }
+}
+```
+
+---
+
+## 3. Discovering New MCP Servers
+
+### Where to Find MCP Servers
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    MCP SERVER DISCOVERY                                │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   METHOD 1: GitHub - "Awesome MCP Servers"                            │
+│                                                                         │
+│   Search: "awesome mcp servers" on Google                             │
+│   First result: GitHub repository with curated list                   │
+│                                                                         │
+│   Categories include:                                                  │
+│   • AI & Machine Learning                                             │
+│   • Communication (Slack, Discord)                                    │
+│   • Data & Databases (MySQL, PostgreSQL)                              │
+│   • File Systems (Google Drive, Dropbox)                              │
+│   • Development (GitHub, GitLab)                                      │
+│   • And many more...                                                  │
+│                                                                         │
+│   METHOD 2: MCP Marketplaces                                          │
+│                                                                         │
+│   • Various websites list MCP servers                                 │
+│   • Growing ecosystem of providers                                    │
+│                                                                         │
+│   METHOD 3: Google Search                                             │
+│                                                                         │
+│   Search: "[service name] MCP server"                                 │
+│   Example: "Slack MCP server", "Notion MCP server"                   │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Example: "Awesome MCP Servers" Repository
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    AWESOME MCP SERVERS                                 │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   💡 A curated list of MCP servers                                    │
+│                                                                         │
+│   Categories:                                                          │
+│                                                                         │
+│   🔹 AI/ML                                                             │
+│      • Anthropic Claude MCP server                                    │
+│      • OpenAI MCP server                                              │
+│      • Hugging Face MCP server                                        │
+│                                                                         │
+│   🔹 Communication                                                     │
+│      • Slack MCP server                                               │
+│      • Discord MCP server                                             │
+│      • Gmail MCP server                                               │
+│                                                                         │
+│   🔹 Data & Databases                                                  │
+│      • MySQL MCP server                                               │
+│      • PostgreSQL MCP server                                          │
+│      • MongoDB MCP server                                             │
+│                                                                         │
+│   🔹 File Systems                                                      │
+│      • Google Drive MCP server                                        │
+│      • Dropbox MCP server                                             │
+│      • Local Filesystem MCP server                                    │
+│                                                                         │
+│   🔹 Development                                                       │
+│      • GitHub MCP server                                              │
+│      • GitLab MCP server                                              │
+│      • Jira MCP server                                                │
+│                                                                         │
+│   🔹 And many more...                                                 │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### How to Find the Right MCP Server
+
+| Step | Action |
+|------|--------|
+| 1 | Identify the tool/service you want to use with AI |
+| 2 | Search: "[tool name] MCP server" on Google |
+| 3 | Check GitHub repositories |
+| 4 | Look at the "Awesome MCP Servers" list |
+| 5 | Check if it has a connector in Claude Desktop |
+| 6 | If not, use the JSON configuration method |
+
+---
+
+## 4. Flow Diagrams
+
+### Diagram 1: Twitter MCP Server Setup Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    TWITTER MCP SETUP FLOW                              │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   START                                                                 │
+│    │                                                                     │
+│    ▼                                                                     │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │  Step 1: Get Twitter Developer Account                        │    │
+│   │  • Go to developer.twitter.com                               │    │
+│   │  • Create project                                            │    │
+│   │  • Generate API keys                                          │    │
+│   └──────────────────────────┬────────────────────────────────────┘    │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │  Step 2: Get Configuration Code                              │    │
+│   │  • Search: "Twitter MCP server"                              │    │
+│   │  • Go to GitHub repository                                   │    │
+│   │  • Copy the JSON configuration                               │    │
+│   └──────────────────────────┬────────────────────────────────────┘    │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │  Step 3: Add to Claude Desktop Config                        │    │
+│   │  • Open Settings → Developer → Edit Config                   │    │
+│   │  • Add configuration with API keys                           │    │
+│   │  • Save and restart Claude                                   │    │
+│   └──────────────────────────┬────────────────────────────────────┘    │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │  Step 4: Verify Tools                                        │    │
+│   │  • Check available tools                                     │    │
+│   │  • Tools: search_tweets, post_tweet                          │    │
+│   └──────────────────────────┬────────────────────────────────────┘    │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │  Step 5: Use It!                                             │    │
+│   │  • "Search for tweets about AI"                              │    │
+│   │  • "Post a tweet: Hello from MCP"                            │    │
+│   └───────────────────────────────────────────────────────────────┘    │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Diagram 2: Weather MCP Server Setup Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    WEATHER MCP SETUP FLOW                              │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   START                                                                 │
+│    │                                                                     │
+│    ▼                                                                     │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │  Step 1: Install UV                                           │    │
+│   │  • pip install uv                                            │    │
+│   │  • Verify: which uvx                                         │    │
+│   └──────────────────────────┬────────────────────────────────────┘    │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │  Step 2: Get Weather API Key                                 │    │
+│   │  • Go to weatherapi.com                                      │    │
+│   │  • Sign up (free tier)                                       │    │
+│   │  • Copy API key                                              │    │
+│   └──────────────────────────┬────────────────────────────────────┘    │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │  Step 3: Get Configuration Code                              │    │
+│   │  • Search: "Weather MCP server"                              │    │
+│   │  • Go to GitHub repository                                   │    │
+│   │  • Copy the JSON configuration                               │    │
+│   └──────────────────────────┬────────────────────────────────────┘    │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │  Step 4: Add to Claude Desktop Config                        │    │
+│   │  • Open Settings → Developer → Edit Config                   │    │
+│   │  • Add configuration                                         │    │
+│   │  • Replace uvx with full path if needed                      │    │
+│   │  • Add API key                                               │    │
+│   │  • Save and restart Claude                                   │    │
+│   └──────────────────────────┬────────────────────────────────────┘    │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │  Step 5: Use It!                                             │    │
+│   │  • "What's the weather in Gurugram?"                         │    │
+│   │  • "Tell me the forecast for London"                         │    │
+│   └───────────────────────────────────────────────────────────────┘    │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Diagram 3: Local vs Remote Server Comparison
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    LOCAL VS REMOTE SERVER COMPARISON                  │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   LOCAL SERVER (Twitter MCP)                    REMOTE SERVER (Weather)│
+│   ─────────────────────────                    ─────────────────────   │
+│                                                                         │
+│   ┌─────────────────────────────┐          ┌─────────────────────────┐ │
+│   │  Code runs on YOUR machine  │          │  Code runs on internet  │ │
+│   └─────────────────────────────┘          └─────────────────────────┘ │
+│                                                                         │
+│   ┌─────────────────────────────┐          ┌─────────────────────────┐ │
+│   │  Installed via npx/npm      │          │  Fetched via uv/uvx     │ │
+│   └─────────────────────────────┘          └─────────────────────────┘ │
+│                                                                         │
+│   ┌─────────────────────────────┐          ┌─────────────────────────┐ │
+│   │  Files on local machine     │          │  No local files needed  │ │
+│   └─────────────────────────────┘          └─────────────────────────┘ │
+│                                                                         │
+│   ┌─────────────────────────────┐          ┌─────────────────────────┐ │
+│   │  Transport: stdio           │          │  Transport: HTTP + SSE  │ │
+│   └─────────────────────────────┘          └─────────────────────────┘ │
+│                                                                         │
+│   ┌─────────────────────────────┐          ┌─────────────────────────┐ │
+│   │  Example: Filesystem,       │          │  Example: Google Drive  │ │
+│   │  Manim, Twitter             │          │  Remote Servers         │ │
+│   └─────────────────────────────┘          └─────────────────────────┘ │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Diagram 4: MCP Server Discovery Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    MCP SERVER DISCOVERY FLOW                           │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   START - Want to find an MCP server                                   │
+│    │                                                                     │
+│    ▼                                                                     │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │  Method 1: "Awesome MCP Servers"                             │    │
+│   │  • Google search: "awesome mcp servers"                     │    │
+│   │  • Go to GitHub repository                                   │    │
+│   │  • Browse categories                                         │    │
+│   └──────────────────────────┬────────────────────────────────────┘    │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │  Method 2: Direct Search                                     │    │
+│   │  • Search: "[service] MCP server"                            │    │
+│   │  • Example: "Slack MCP server"                               │    │
+│   │  • Check GitHub for repositories                             │    │
+│   └──────────────────────────┬────────────────────────────────────┘    │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │  Method 3: MCP Marketplaces                                  │    │
+│   │  • Various websites list MCP servers                         │    │
+│   │  • Growing ecosystem                                         │    │
+│   └──────────────────────────┬────────────────────────────────────┘    │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │  Method 4: Claude Connectors                                 │    │
+│   │  • Open Claude Desktop                                       │    │
+│   │  • Click "Add Connectors"                                    │    │
+│   │  • Browse available connectors                               │    │
+│   └──────────────────────────┬────────────────────────────────────┘    │
+│                              │                                         │
+│                              ▼                                         │
+│   FOUND! Choose the server and install it                            │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 5. Code Examples
+
+### Example 1: Twitter MCP Server Configuration
+
+```json
+{
+  "mcpServers": {
+    "twitter": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-twitter"
+      ],
+      "env": {
+        "TWITTER_API_KEY": "your-api-key",
+        "TWITTER_API_SECRET": "your-api-secret",
+        "TWITTER_ACCESS_TOKEN": "your-access-token",
+        "TWITTER_ACCESS_TOKEN_SECRET": "your-access-token-secret"
+      }
+    }
+  }
+}
+```
+
+### Example 2: Getting Twitter API Keys
+
+```bash
+# How to get Twitter API keys:
+
+# Step 1: Go to developer.twitter.com
+# Step 2: Create a project
+# Step 3: Navigate to "Keys and Tokens"
+# Step 4: Generate these credentials:
+
+# API Key (Consumer Key)
+# API Secret Key (Consumer Secret)
+# Access Token
+# Access Token Secret
+
+# Step 5: Set permissions to "Read and Write"
+
+# Step 6: Add to config file
+```
+
+### Example 3: Weather MCP Server Configuration
+
+```json
+{
+  "mcpServers": {
+    "weather": {
+      "command": "/Users/nitesh/.local/bin/uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/modelcontextprotocol/servers.git",
+        "weather-mcp-server"
+      ],
+      "env": {
+        "WEATHER_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
+
+### Example 4: Getting Weather API Key
+
+```bash
+# How to get Weather API key:
+
+# Step 1: Go to weatherapi.com
+# Step 2: Sign up for free account
+# Step 3: Navigate to dashboard
+# Step 4: Copy API key
+
+# API key format: 1234567890abcdef1234567890abcdef
+```
+
+### Example 5: Finding UVX Path
+
+```bash
+# Find the path to uvx
+which uvx
+# Output: /Users/username/.local/bin/uvx
+
+# If uvx is not found, install it
+pip install uv
+
+# Verify installation
+uvx --version
+```
+
+### Example 6: Complete Claude Desktop Config with All Servers
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/nitesh/Desktop",
+        "/Users/nitesh/Downloads"
+      ]
+    },
+    "manim": {
+      "command": "python3",
+      "args": [
+        "/Users/nitesh/Desktop/manim-mcp-server/src/manim_server.py"
+      ],
+      "env": {
+        "PYTHONPATH": "/Users/nitesh/Desktop/manim-mcp-server/src"
+      }
+    },
+    "twitter": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-twitter"
+      ],
+      "env": {
+        "TWITTER_API_KEY": "your-api-key",
+        "TWITTER_API_SECRET": "your-api-secret",
+        "TWITTER_ACCESS_TOKEN": "your-access-token",
+        "TWITTER_ACCESS_TOKEN_SECRET": "your-access-token-secret"
+      }
+    },
+    "weather": {
+      "command": "/Users/nitesh/.local/bin/uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/modelcontextprotocol/servers.git",
+        "weather-mcp-server"
+      ],
+      "env": {
+        "WEATHER_API_KEY": "your-api-key"
+      }
+    }
+  }
+}
+```
+
+### Example 7: Using Twitter MCP Server
+
+```python
+# Conceptual: How the Twitter MCP server works
+
+# Search tweets
+search_request = {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+        "name": "search_tweets",
+        "arguments": {
+            "query": "AI",
+            "count": 10
+        }
+    }
+}
+
+# Post a tweet
+post_request = {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/call",
+    "params": {
+        "name": "post_tweet",
+        "arguments": {
+            "text": "Hello from CampusX!"
+        }
+    }
+}
+```
+
+### Example 8: Using Weather MCP Server
+
+```python
+# Conceptual: How the Weather MCP server works
+
+# Get current weather
+weather_request = {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+        "name": "get_current_weather",
+        "arguments": {
+            "location": "Gurugram"
+        }
+    }
+}
+
+# Weather response
+weather_response = {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+        "temperature": 28,
+        "condition": "Sunny",
+        "humidity": 65,
+        "wind_speed": 12
+    }
+}
+```
+
+---
+
+## 6. Key Pointers Summary
+
+| Concept | Explanation |
+|---------|-------------|
+| **Twitter MCP** | Actually a LOCAL server, not remote; uses npx/npm |
+| **Weather MCP** | Actually a REMOTE server; uses uv/uvx |
+| **API Keys** | Required for both Twitter and Weather servers |
+| **Permissions** | Twitter needs read+write permissions for posting |
+| **UV** | Python package installer used for Weather server |
+| **npx** | Node package executor used for Twitter server |
+| **Discovery** | "Awesome MCP Servers" GitHub repo is the best resource |
+
+### Important Rules:
+
+| Rule | Explanation |
+|------|-------------|
+| **Read-Only for Twitter** | Default permissions are read-only; need to enable write |
+| **UV Path Required** | May need to specify full path to uvx |
+| **Restart After Changes** | Always restart Claude Desktop after config changes |
+| **API Keys are Sensitive** | Never share your API keys publicly |
+| **Free Tiers Exist** | Both Twitter and Weather have free tiers |
+
+### Common Issues and Solutions
+
+| Issue | Solution |
+|-------|----------|
+| **Twitter write permission error** | Update app permissions to "Read and Write" |
+| **Weather API key invalid** | Check if API key is correct and active |
+| **uvx command not found** | Install UV: `pip install uv` |
+| **npx command not found** | Install Node.js from nodejs.org |
+| **Server not showing in Claude** | Check JSON syntax; restart Claude |
+| **Authentication error** | Regenerate API keys and update config |
+
+---
+
+## 7. Quick Reference
+
+### Installation Commands
+
+```bash
+# Install UV (for Weather server)
+pip install uv
+
+# Install Node.js (for Twitter server)
+# Download from: https://nodejs.org/
+
+# Verify installations
+uvx --version
+npx --version
+```
+
+### Getting API Keys
+
+```bash
+# Twitter API
+# 1. developer.twitter.com
+# 2. Create project
+# 3. Keys and Tokens
+# 4. Generate all 4 keys
+
+# Weather API
+# 1. weatherapi.com
+# 2. Sign up
+# 3. Copy API key
+```
+
+### Configuration Template
+
+```json
+{
+  "mcpServers": {
+    "twitter": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-twitter"],
+      "env": {
+        "TWITTER_API_KEY": "your-api-key",
+        "TWITTER_API_SECRET": "your-api-secret",
+        "TWITTER_ACCESS_TOKEN": "your-access-token",
+        "TWITTER_ACCESS_TOKEN_SECRET": "your-access-token-secret"
+      }
+    },
+    "weather": {
+      "command": "/path/to/uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/modelcontextprotocol/servers.git",
+        "weather-mcp-server"
+      ],
+      "env": {
+        "WEATHER_API_KEY": "your-api-key"
+      }
+    }
+  }
+}
+```
+
+---
+
+## 8. Summary
+
+| Server | Type | Method | Tools | Permissions |
+|--------|------|--------|-------|-------------|
+| **Twitter** | Local | JSON Config | search_tweets, post_tweet | Read + Write |
+| **Weather** | Remote | JSON Config | get_current_weather | API Key |
+| **Discovery** | N/A | GitHub | Browse categories | N/A |
+
+### Key Takeaways:
+
+1. **Twitter MCP** is a local server that uses `npx` to run
+2. **Weather MCP** is a remote server that uses `uvx` to run
+3. **API Keys** are required for both services
+4. **Twitter needs write permissions** for posting tweets
+5. **"Awesome MCP Servers"** is the best place to discover new servers
+6. **Always restart Claude Desktop** after configuration changes
+7. **API keys should be kept secure** - regenerate after the video
+
+- [List of MCP Servers](https://github.com/punkpeye/awesome-mcp-servers)
+
+---
+
+## 06. How to Build Local MCP Servers (01:12:10)
 
 summaries this MCP tutorial transcript in simple words with all detail along with flow diagrams, also make note of all important pointers and explain each important concepts with basic code examples
