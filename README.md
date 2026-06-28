@@ -5777,7 +5777,7 @@ You can start using MCP right now with zero coding:
 
 ---
 
-# MCP Tutorial - Part 6: "Integrating Twitter & Weather MCP Servers" - Complete Summary
+## Integrating Twitter & Weather MCP Servers
 
 This transcript covers the **practical integration** of two more MCP servers with Claude Desktop:
 - **Twitter (X) MCP Server** - Read and post tweets
