@@ -6768,4 +6768,979 @@ npx --version
 
 ## 06. How to Build Local MCP Servers (01:12:10)
 
+This tutorial covers the **practical implementation of building custom MCP servers** locally, including:
+- The complete playlist recap
+- Understanding the MCP ecosystem and library history
+- Building a demo server (Dice Roll & Add Numbers)
+- Integrating with Claude Desktop
+- Planning the Expense Tracker server
+
+---
+
+## 📖 Table of Contents
+1. [Playlist Recap & Goals](#1-playlist-recap--goals)
+2. [MCP Library Ecosystem: The Complete Story](#2-mcp-library-ecosystem-the-complete-story)
+3. [Demo Server: Dice Roll & Add Numbers](#3-demo-server-dice-roll--add-numbers)
+4. [MCP Inspector - Debugging Tool](#4-mcp-inspector---debugging-tool)
+5. [Integrating with Claude Desktop](#5-integrating-with-claude-desktop)
+6. [Planning the Expense Tracker Server](#6-planning-the-expense-tracker-server)
+7. [Flow Diagrams](#7-flow-diagrams)
+8. [Code Examples](#8-code-examples)
+9. [Key Pointers Summary](#9-key-pointers-summary)
+
+---
+
+## 1. Playlist Recap & Goals
+
+### The Three-Part Structure
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    MCP PLAYLIST STRUCTURE                             │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ┌──────────────┐    ┌──────────────┐    ┌──────────────┐            │
+│   │              │    │              │    │              │            │
+│   │    TRAILER   │───▶│   THE WHY    │───▶│   THE WHAT   │            │
+│   │              │    │              │    │              │            │
+│   │  Newsletter  │    │  Why MCP?    │    │ Architecture │            │
+│   │  Demo        │    │  Problems    │    │ Lifecycle    │            │
+│   └──────────────┘    └──────────────┘    └──────────────┘            │
+│                                                                         │
+│                              ▼                                          │
+│   ┌──────────────────────────────────────────────────────────────────┐ │
+│   │                         THE HOW                                 │ │
+│   │                                                                  │ │
+│   │   ┌──────────────┐    ┌──────────────┐    ┌──────────────┐    │ │
+│   │   │   Phase 1    │    │   Phase 2    │    │   Phase 3    │    │ │
+│   │   │ (Pre-made)   │    │  (This Video)│    │  (Next)      │    │ │
+│   │   │              │    │              │    │              │    │ │
+│   │   │ Use existing │    │ Build CUSTOM │    │ Build CUSTOM │    │ │
+│   │   │ servers &    │    │ LOCAL        │    │ REMOTE       │    │ │
+│   │   │ clients      │    │ servers      │    │ servers      │    │ │
+│   │   └──────────────┘    └──────────────┘    └──────────────┘    │ │
+│   │                                                                  │ │
+│   │                              ▼                                   │ │
+│   │   ┌────────────────────────────────────────────────────────────┐│ │
+│   │   │                    Phase 4 (Future)                       ││ │
+│   │   │                                                           ││ │
+│   │   │                 Build CUSTOM CLIENTS                      ││ │
+│   │   │                                                           ││ │
+│   │   └────────────────────────────────────────────────────────────┘│ │
+│   └──────────────────────────────────────────────────────────────────┘ │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Today's Goal
+
+> Build a **custom local MCP server** - an **Expense Tracker** that you can control via natural language through Claude Desktop.
+
+### The Product Roadmap
+
+| Phase | What We Build |
+|-------|---------------|
+| **This Video** | Local MCP Server (Expense Tracker) |
+| **Next Video** | Remote MCP Server (Hosted on cloud) |
+| **Future Video** | Custom MCP Client (from scratch) |
+
+---
+
+## 2. MCP Library Ecosystem: The Complete Story
+
+### Why This Section is Important
+
+The MCP ecosystem has evolved, creating **confusion** about which library to use:
+- Some tutorials show `mcp` library
+- Others show `fastmcp` library
+- The code looks similar but the names are different
+
+**The analogy:** This is like TensorFlow vs Keras, or WSGI vs Flask.
+
+### The Evolution Timeline
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    MCP LIBRARY EVOLUTION                               │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   2023 (End)                                                           │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │   MCP Protocol released by Anthropic                           │  │
+│   │   People wanted to build custom servers/clients               │  │
+│   │   But building from scratch was:                               │  │
+│   │   ❌ Complex                                                  │  │
+│   │   ❌ Redundant (need to write same code repeatedly)            │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │   Anthropic releases official Python SDK                       │  │
+│   │   Called: "mcp" or "MCP SDK"                                   │  │
+│   │                                                                  │  │
+│   │   Three sub-libraries:                                          │  │
+│   │   ├── mcp.server    → Build servers                            │  │
+│   │   ├── mcp.client    → Build clients                            │  │
+│   │   └── mcp.cli       → Command-line tools                      │  │
+│   │                                                                  │  │
+│   │   ⚠️ Problem: Very verbose and boilerplate-heavy               │  │
+│   │      Too much code even for simple servers                     │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │   Jeremiah Lowin (CEO of Prefect) sees the problem             │  │
+│   │   Creates an abstraction on top of MCP SDK                     │  │
+│   │   Called: "fastmcp"                                            │  │
+│   │                                                                  │  │
+│   │   ✅ Much simpler and beginner-friendly                        │  │
+│   │   ✅ Dramatically less code                                    │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │   FastMCP becomes so popular that MCP SDK adopts it            │  │
+│   │   Now fastmcp is available inside mcp SDK                      │  │
+│   │   You just import: from mcp import FastMCP                     │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │   2025: FastMCP branches off independently                     │  │
+│   │                                                                  │  │
+│   │   Two options now:                                              │  │
+│   │                                                                  │  │
+│   │   Option 1: pip install mcp[cli]                               │  │
+│   │   → Use FastMCP inside MCP SDK (version 1.0)                   │  │
+│   │                                                                  │  │
+│   │   Option 2: pip install fastmcp                                │  │
+│   │   → Use FastMCP independently (version 2.0)                    │  │
+│   │   → More features, more actively developed                     │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### The Analogy: WSGI → Flask
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    ANALOGY: WSGI → FLASK                               │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   MCP Ecosystem                      Python Web Ecosystem              │
+│   ────────────────                   ───────────────────                │
+│                                                                         │
+│   MCP Protocol             =         WSGI Specification                │
+│   (Standard/Protocol)                 (Standard/Protocol)               │
+│                                                                         │
+│   MCP SDK                   =         WSGI Implementation              │
+│   (Low-level, complex)                 (Low-level, complex)             │
+│                                                                         │
+│   FastMCP                   =         Flask                            │
+│   (Developer-friendly                 (Developer-friendly               │
+│    abstraction)                         abstraction)                    │
+│                                                                         │
+│   ❌ People rarely use raw WSGI today                                 │
+│   ✅ Everyone uses Flask (or similar)                                 │
+│                                                                         │
+│   ❌ People may move away from raw MCP SDK                            │
+│   ✅ FastMCP is likely to become the standard                         │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Connection to FastAPI
+
+> 💡 **Fun Fact:** "FastMCP" naming is inspired by **FastAPI**!
+> - Both are developer-friendly abstractions
+> - Both use decorators for easy functionality
+> - Both are the preferred way to build their respective systems
+
+---
+
+## 3. Demo Server: Dice Roll & Add Numbers
+
+### What We're Building
+
+A simple MCP server with **two tools**:
+
+| Tool | Description |
+|------|-------------|
+| **roll_dice** | Roll 1 or more dice (1-6 each) |
+| **add_numbers** | Add two numbers together |
+
+### Complete Code
+
+```python
+# main.py
+from mcp import FastMCP
+
+# Create an MCP server instance
+mcp = FastMCP("Demo Server")
+
+# Define a tool using the @mcp.tool decorator
+@mcp.tool()
+def roll_dice(sides: int = 6, count: int = 1) -> list[int]:
+    """Roll one or more dice and return the results."""
+    import random
+    return [random.randint(1, sides) for _ in range(count)]
+
+# Define another tool
+@mcp.tool()
+def add_numbers(a: float, b: float) -> float:
+    """Add two numbers together."""
+    return a + b
+
+# Run the server
+if __name__ == "__main__":
+    mcp.run()
+```
+
+### Code Breakdown
+
+```python
+# 1. Import FastMCP
+from mcp import FastMCP
+
+# 2. Create server instance
+mcp = FastMCP("Demo Server")
+#    └── This is your server object
+
+# 3. Define a tool using the decorator
+@mcp.tool()
+# └── This decorator converts a Python function into an MCP tool
+def roll_dice(sides: int = 6, count: int = 1) -> list[int]:
+    """Docstring becomes the tool description for the LLM!"""
+    import random
+    return [random.randint(1, sides) for _ in range(count)]
+
+# 4. Run the server
+if __name__ == "__main__":
+    mcp.run()
+```
+
+### Why This Works So Well
+
+| Feature | How It Works |
+|---------|--------------|
+| **Docstring** | Becomes the tool description for the LLM |
+| **Type Hints** | Tell the LLM what type of arguments to pass |
+| **Decorator** | Automatically registers the function as a tool |
+| **Run Method** | Handles all the MCP protocol details behind the scenes |
+
+---
+
+## 4. MCP Inspector - Debugging Tool
+
+### What is MCP Inspector?
+
+> A debugging tool (like Postman for MCP) that lets you test your MCP server without connecting to Claude Desktop.
+
+### How to Use MCP Inspector
+
+**Command:**
+```bash
+uv run fastmcp dev main.py
+# Or
+mcp dev main.py
+```
+
+**What Happens:**
+1. A local web server starts
+2. You can see JSON-RPC messages in real-time
+3. You can test individual tools
+4. You can see the initialization handshake
+
+### Inspector Interface
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    MCP INSPECTOR INTERFACE                             │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  MCP Inspector                                                 │  │
+│   │  ──────────────                                                │  │
+│   │  Transport: stdio (local server)                               │  │
+│   │  [Connect] [Disconnect]                                       │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  🛠️ Tools      📄 Resources    💬 Prompts                     │  │
+│   │                                                                  │  │
+│   │  Tools Available:                                               │  │
+│   │  ├── roll_dice                                                  │  │
+│   │  └── add_numbers                                                │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  JSON-RPC History                                              │  │
+│   │  ─────────────────                                             │  │
+│   │  → initialize request                                          │  │
+│   │  ← initialize response                                         │  │
+│   │  → notifications/initialized                                   │  │
+│   │  → tools/list                                                  │  │
+│   │  ← tools/list response                                         │  │
+│   │  → tools/call (roll_dice)                                     │  │
+│   │  ← tools/call response (result: [4])                          │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Why Use MCP Inspector?
+
+| Benefit | Explanation |
+|---------|-------------|
+| **Test before integrating** | Catch issues before connecting to Claude |
+| **See JSON-RPC messages** | Understand what's happening at the protocol level |
+| **Debug tools** | Test each tool individually |
+| **No need for Claude** | Works completely standalone |
+
+---
+
+## 5. Integrating with Claude Desktop
+
+### Step 1: Install the Server to Claude Desktop
+
+**Command:**
+```bash
+uv run fastmcp install main.py --client claude-desktop
+# Or
+mcp install main.py
+```
+
+**What Happens:**
+1. The command automatically adds the server to Claude's config file
+2. No manual JSON editing needed!
+
+### Step 2: Handle the Path Issue (Common Error)
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    PATH ISSUE FIX                                      │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ❌ Problem: After installation, server doesn't load                   │
+│                                                                         │
+│   🔍 Check: Go to Settings → Developer → Edit Config                   │
+│                                                                         │
+│   🔎 Find: Your server entry has "command": "uv"                       │
+│                                                                         │
+│   ✅ Fix: Replace "uv" with the full path to uv                        │
+│                                                                         │
+│   To find uv path:                                                     │
+│   $ which uv                                                           │
+│   /Users/nitesh/.local/bin/uv                                          │
+│                                                                         │
+│   After fix:                                                           │
+│   "command": "/Users/nitesh/.local/bin/uv",                           │
+│                                                                         │
+│   🚀 Restart Claude Desktop                                            │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Step 3: Test in Claude Desktop
+
+**Once connected, you can use natural language:**
+
+```
+User: "Roll a die"
+Claude: [Uses roll_dice tool] "You rolled a 4!"
+
+User: "Roll two dice"
+Claude: [Uses roll_dice with count=2] "You rolled a 4 and a 3!"
+
+User: "Add 234 and 567"
+Claude: [Uses add_numbers tool] "234 + 567 = 801"
+```
+
+### Complete Setup Summary
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    SETUP PROCESS FLOW                                  │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   1. Create project folder                                             │
+│         │                                                              │
+│         ▼                                                              │
+│   2. Initialize UV: uv init .                                         │
+│         │                                                              │
+│         ▼                                                              │
+│   3. Install FastMCP: uv add fastmcp                                  │
+│         │                                                              │
+│         ▼                                                              │
+│   4. Write server code (main.py)                                      │
+│         │                                                              │
+│         ▼                                                              │
+│   5. Test with MCP Inspector: mcp dev main.py                        │
+│         │                                                              │
+│         ▼                                                              │
+│   6. Install to Claude: mcp install main.py                          │
+│         │                                                              │
+│         ▼                                                              │
+│   7. Fix path if needed (replace "uv" with full path)                 │
+│         │                                                              │
+│         ▼                                                              │
+│   8. Restart Claude Desktop                                           │
+│         │                                                              │
+│         ▼                                                              │
+│   9. ✅ Start using your custom server!                               │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 6. Planning the Expense Tracker Server
+
+### What We'll Build
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    EXPENSE TRACKER SERVER DESIGN                       │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   Three Main Tools:                                                    │
+│                                                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  1. ADD EXPENSE                                                │  │
+│   │                                                                  │  │
+│   │  User: "Add ₹500 travel expense for cab yesterday"              │  │
+│   │                                                                  │  │
+│   │  Server:                                                        │  │
+│   │  ├── Amount: ₹500                                              │  │
+│   │  ├── Category: Travel (auto-detected)                          │  │
+│   │  ├── Date: Yesterday (converted to actual date)                │  │
+│   │  └── Note: "Cab"                                               │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  2. LIST EXPENSES                                              │  │
+│   │                                                                  │  │
+│   │  User: "Show me all expenses from September"                    │  │
+│   │                                                                  │  │
+│   │  Server:                                                        │  │
+│   │  ├── Filters by date range                                     │  │
+│   │  ├── Returns formatted table                                   │  │
+│   │  └── Shows total amount                                        │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  3. SUMMARIZE EXPENSES                                         │  │
+│   │                                                                  │  │
+│   │  User: "How much did I spend on travel this month?"             │  │
+│   │                                                                  │  │
+│   │  Server:                                                        │  │
+│   │  ├── Analyzes by category                                      │  │
+│   │  ├── Calculates totals                                         │  │
+│   │  └── Returns natural language summary                          │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Why This is a Good Intermediate Project
+
+| Reason | Explanation |
+|--------|-------------|
+| **Useful** | Actually solves a real problem (expense tracking) |
+| **Practical** | You can use it in your daily life |
+| **Intermediate** | Not too simple, not too complex |
+| **Teaches** | Database, natural language processing, tool design |
+| **Extensible** | Can add more features over time |
+
+---
+
+## 7. Flow Diagrams
+
+### Diagram 1: Complete Server Development Workflow
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    SERVER DEVELOPMENT WORKFLOW                         │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │                   PLAN & DESIGN                               │    │
+│   │   • Define tools needed                                       │    │
+│   │   • Design data structure                                     │    │
+│   │   • Plan user experience                                      │    │
+│   └──────────────────────────┬────────────────────────────────────┘    │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │                   CODE THE SERVER                             │    │
+│   │   • Import FastMCP                                            │    │
+│   │   • Define tools with @mcp.tool decorators                   │    │
+│   │   • Implement business logic                                  │    │
+│   └──────────────────────────┬────────────────────────────────────┘    │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │                   TEST WITH INSPECTOR                         │    │
+│   │   • Run: mcp dev main.py                                     │    │
+│   │   • Test each tool individually                               │    │
+│   │   • Check JSON-RPC messages                                   │    │
+│   │   • Fix any issues                                            │    │
+│   └──────────────────────────┬────────────────────────────────────┘    │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │                   INSTALL TO CLAUDE                           │    │
+│   │   • Run: mcp install main.py                                 │    │
+│   │   • Fix path if needed                                        │    │
+│   │   • Restart Claude Desktop                                    │    │
+│   └──────────────────────────┬────────────────────────────────────┘    │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │                   USE WITH CLAUDE                             │    │
+│   │   • Test with natural language prompts                        │    │
+│   │   • Refine tool descriptions                                  │    │
+│   │   • Add more features                                         │    │
+│   └───────────────────────────────────────────────────────────────┘    │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Diagram 2: MCP Library Ecosystem
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    MCP LIBRARY ECOSYSTEM (2025)                        │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │                  MCP PROTOCOL (Standard)                       │    │
+│   │               Set of rules for communication                   │    │
+│   └───────────────────────────────────────────────────────────────┘    │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │                   MCP SDK (Official)                           │    │
+│   │            Low-level implementation of the protocol            │    │
+│   │                                                                  │    │
+│   │   ┌─────────────┐  ┌─────────────┐  ┌─────────────┐           │    │
+│   │   │ mcp.server  │  │ mcp.client  │  │  mcp.cli    │           │    │
+│   │   └─────────────┘  └─────────────┘  └─────────────┘           │    │
+│   └───────────────────────────────────────────────────────────────┘    │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │                   FastMCP (Abstraction)                        │    │
+│   │           Developer-friendly wrapper on top of MCP SDK         │    │
+│   │                                                                  │    │
+│   │   Two ways to get it:                                           │    │
+│   │                                                                  │    │
+│   │   Option A: pip install mcp[cli]                               │    │
+│   │   └── from mcp import FastMCP (version 1.0)                   │    │
+│   │                                                                  │    │
+│   │   Option B: pip install fastmcp                                │    │
+│   │   └── from fastmcp import FastMCP (version 2.0)               │    │
+│   │                                                                  │    │
+│   │   ⭐ Both produce similar code!                                │    │
+│   └───────────────────────────────────────────────────────────────┘    │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Diagram 3: Demo Server Code Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    DEMO SERVER CODE FLOW                               │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   Step 1: Import                                                       │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  from mcp import FastMCP                                        │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                              │                                         │
+│                              ▼                                         │
+│   Step 2: Create server instance                                      │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  mcp = FastMCP("Demo Server")                                   │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                              │                                         │
+│                              ▼                                         │
+│   Step 3: Define tools (with decorators)                              │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  @mcp.tool()                                                    │  │
+│   │  def roll_dice(sides: int = 6, count: int = 1) -> list[int]:   │  │
+│   │      import random                                              │  │
+│   │      return [random.randint(1, sides) for _ in range(count)]   │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                              │                                         │
+│                              ▼                                         │
+│   Step 4: Define more tools                                           │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  @mcp.tool()                                                    │  │
+│   │  def add_numbers(a: float, b: float) -> float:                 │  │
+│   │      return a + b                                              │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                              │                                         │
+│                              ▼                                         │
+│   Step 5: Run the server                                              │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  if __name__ == "__main__":                                     │  │
+│   │      mcp.run()                                                 │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                              │                                         │
+│                              ▼                                         │
+│   Result: Two tools automatically available to any MCP client!       │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Diagram 4: MCP Inspector in Action
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    MCP INSPECTOR WORKFLOW                              │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   Command: mcp dev main.py                                            │
+│         │                                                              │
+│         ▼                                                              │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  Browser opens with MCP Inspector UI                           │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│         │                                                              │
+│         ▼                                                              │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  Step 1: Click "Connect"                                        │  │
+│   │  ────────────────────────────                                  │  │
+│   │  • Initialization handshake happens                            │  │
+│   │  • JSON-RPC messages appear in history                         │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│         │                                                              │
+│         ▼                                                              │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  Step 2: Click "List Tools"                                     │  │
+│   │  ────────────────────────────                                  │  │
+│   │  • Client sends: tools/list                                    │  │
+│   │  • Server responds: list of all tools                          │  │
+│   │  • Shows: roll_dice, add_numbers                               │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│         │                                                              │
+│         ▼                                                              │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  Step 3: Test a tool                                            │  │
+│   │  ────────────────────────────                                  │  │
+│   │  • Select "add_numbers" tool                                   │  │
+│   │  • Enter arguments: a=5, b=7                                   │  │
+│   │  • Click "Run Tool"                                            │  │
+│   │  • Client sends: tools/call                                    │  │
+│   │  • Server responds: {"result": 12}                            │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 8. Code Examples
+
+### Example 1: Complete Demo Server
+
+```python
+# main.py
+from mcp import FastMCP
+
+# Create server instance
+mcp = FastMCP("Demo Server")
+
+@mcp.tool()
+def roll_dice(sides: int = 6, count: int = 1) -> list[int]:
+    """Roll one or more dice and return the results.
+    
+    Args:
+        sides: Number of sides on each die (default: 6)
+        count: Number of dice to roll (default: 1)
+    
+    Returns:
+        List of dice roll results
+    """
+    import random
+    return [random.randint(1, sides) for _ in range(count)]
+
+@mcp.tool()
+def add_numbers(a: float, b: float) -> float:
+    """Add two numbers together.
+    
+    Args:
+        a: First number
+        b: Second number
+    
+    Returns:
+        Sum of a and b
+    """
+    return a + b
+
+if __name__ == "__main__":
+    mcp.run()
+```
+
+### Example 2: Setting Up the Project
+
+```bash
+# Step 1: Create project folder
+mkdir expense-tracker-mcp-server
+cd expense-tracker-mcp-server
+
+# Step 2: Initialize UV
+uv init .
+
+# Step 3: Install FastMCP
+uv add fastmcp
+
+# Step 4: Create main.py (add the demo code above)
+
+# Step 5: Test with inspector
+uv run fastmcp dev main.py
+
+# Step 6: Install to Claude Desktop
+uv run fastmcp install main.py --client claude-desktop
+```
+
+### Example 3: Finding UV Path (if needed)
+
+```bash
+# Find the full path to uv
+which uv
+# Output: /Users/nitesh/.local/bin/uv
+
+# Update Claude config file
+# Replace "command": "uv" with "command": "/Users/nitesh/.local/bin/uv"
+```
+
+### Example 4: MCP Inspector Test Commands
+
+```python
+# In the browser inspector, you'd test these:
+
+# Test 1: List tools
+# Request:
+{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
+
+# Response:
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "tools": [
+      {
+        "name": "roll_dice",
+        "description": "Roll one or more dice and return the results.",
+        "parameters": {
+          "sides": {"type": "integer", "default": 6},
+          "count": {"type": "integer", "default": 1}
+        }
+      },
+      {
+        "name": "add_numbers",
+        "description": "Add two numbers together.",
+        "parameters": {
+          "a": {"type": "number"},
+          "b": {"type": "number"}
+        }
+      }
+    ]
+  }
+}
+
+# Test 2: Call roll_dice
+# Request:
+{"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "roll_dice", "arguments": {"count": 2}}}
+
+# Response:
+{"jsonrpc": "2.0", "id": 2, "result": {"content": [{"type": "text", "text": "[4, 3]"}]}}
+
+# Test 3: Call add_numbers
+# Request:
+{"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "add_numbers", "arguments": {"a": 10, "b": 5}}}
+
+# Response:
+{"jsonrpc": "2.0", "id": 3, "result": {"content": [{"type": "text", "text": "15.0"}]}}
+```
+
+### Example 5: Claude Desktop Config File (After Installation)
+
+```json
+{
+  "mcpServers": {
+    "demo-server": {
+      "command": "/Users/nitesh/.local/bin/uv",
+      "args": [
+        "run",
+        "--with",
+        "fastmcp",
+        "fastmcp",
+        "run",
+        "/Users/nitesh/Desktop/expense-tracker-mcp-server/main.py"
+      ]
+    }
+  }
+}
+```
+
+### Example 6: Using the Server in Claude Desktop
+
+```
+# Natural language prompts you can use:
+
+# Roll a die
+"Roll a die"
+"Roll two dice"
+"Roll 3 dice with 8 sides"
+
+# Add numbers
+"Add 234 and 567"
+"What is 10 + 20?"
+"Calculate the sum of 100 and 200"
+
+# The LLM understands the tool descriptions and uses them automatically!
+```
+
+---
+
+## 9. Key Pointers Summary
+
+### MCP Library Ecosystem
+
+| Concept | Explanation |
+|---------|-------------|
+| **MCP Protocol** | The standard/rules for communication |
+| **MCP SDK** | Low-level implementation (complex) |
+| **FastMCP** | Developer-friendly abstraction (simple) |
+| **Analogy** | WSGI (low-level) → Flask (high-level) |
+| **Current Options** | `mcp[cli]` (v1.0) or `fastmcp` (v2.0) |
+
+### Server Development Steps
+
+| Step | Command/Action |
+|------|----------------|
+| 1. Create project | `uv init .` |
+| 2. Install FastMCP | `uv add fastmcp` |
+| 3. Write code | Create `main.py` with `@mcp.tool()` decorators |
+| 4. Test | `uv run fastmcp dev main.py` |
+| 5. Install to Claude | `uv run fastmcp install main.py` |
+| 6. Fix path | Replace "uv" with full path in config |
+| 7. Restart | Restart Claude Desktop |
+
+### Important Rules
+
+| Rule | Explanation |
+|------|-------------|
+| **Use FastMCP** | It's the simpler, recommended approach |
+| **Use UV** | FastMCP recommends uv over pip |
+| **Test with Inspector** | Always test before integrating with Claude |
+| **Fix UV Path** | Replace "uv" with full path in Claude config |
+| **Restart Claude** | Always restart after installing a new server |
+| **Docstrings Matter** | The docstring becomes the tool description for the LLM |
+
+### Common Issues & Solutions
+
+| Issue | Solution |
+|-------|----------|
+| **UV not found** | Install: `pip install uv` |
+| **FastMCP not found** | Install: `uv add fastmcp` |
+| **Server not loading in Claude** | Replace "uv" with full path in config |
+| **Tools not showing** | Check decorators: `@mcp.tool()` |
+| **LLM not using tools** | Improve docstrings with clear descriptions |
+
+---
+
+## 10. Quick Reference
+
+### FastMCP Tool Creation Pattern
+
+```python
+from mcp import FastMCP
+
+mcp = FastMCP("Your Server Name")
+
+@mcp.tool()
+def your_tool_name(param1: type, param2: type) -> return_type:
+    """Clear description of what this tool does.
+    
+    Args:
+        param1: Description of param1
+        param2: Description of param2
+    
+    Returns:
+        Description of return value
+    """
+    # Your implementation
+    return result
+
+if __name__ == "__main__":
+    mcp.run()
+```
+
+### Commands Reference
+
+```bash
+# Setup
+uv init .
+uv add fastmcp
+
+# Development
+uv run fastmcp dev main.py
+
+# Install to Claude
+uv run fastmcp install main.py --client claude-desktop
+
+# Find UV path
+which uv
+```
+
+### Comparison: MCP SDK vs FastMCP
+
+| Aspect | MCP SDK | FastMCP |
+|--------|---------|---------|
+| **Code Length** | Long (boilerplate heavy) | Short (minimal) |
+| **Complexity** | High | Low |
+| **Beginner Friendly** | ❌ No | ✅ Yes |
+| **Decorator Support** | Limited | ✅ Extensive |
+| **Recommended** | For advanced use | ✅ For beginners |
+| **Analogy** | WSGI | Flask |
+
+---
+
+## 11. Summary
+
+### What We Learned
+
+| Concept | Key Takeaway |
+|---------|--------------|
+| **MCP Library Evolution** | MCP SDK → FastMCP (like WSGI → Flask) |
+| **FastMCP** | The recommended way to build MCP servers |
+| **@mcp.tool() Decorator** | Converts Python functions to MCP tools |
+| **MCP Inspector** | Debugging tool like Postman for MCP |
+| **UV Path Issue** | Replace "uv" with full path in Claude config |
+| **Natural Language** | LLM automatically uses tools based on descriptions |
+
+### What's Next
+
+| Next Video | What We'll Build |
+|------------|------------------|
+| **Custom Expense Tracker** | Full Expense Tracker MCP server with database |
+| **Remote Servers** | Host the server on the cloud |
+| **Custom Clients** | Build MCP clients from scratch |
+
+---
+
+### Useful command for creating and running your own MCP Server
+
+- command to run mcp server - `uv run fastmcp main.py` 
+
+- command to run mcp server and mcp inspector (recommended) `uv run fastmcp dev inspector main.py`
+
+- command to install your mcp server in claude desktop - `uv run fastmcp install claude-desktop main.py`
+
 summaries this MCP tutorial transcript in simple words with all detail along with flow diagrams, also make note of all important pointers and explain each important concepts with basic code examples
