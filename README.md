@@ -7735,12 +7735,1310 @@ which uv
 
 ---
 
+## 📖 Table of Contents
+1. [Project Overview & Features](#1-project-overview--features)
+2. [Database Setup](#2-database-setup)
+3. [Add Expense Tool](#3-add-expense-tool)
+4. [List Expenses Tool (with Date Range)](#4-list-expenses-tool-with-date-range)
+5. [Summarize Expenses Tool](#5-summarize-expenses-tool)
+6. [Category Resource for Consistency](#6-category-resource-for-consistency)
+7. [Integration & Testing](#7-integration--testing)
+8. [Flow Diagrams](#8-flow-diagrams)
+9. [Complete Code](#9-complete-code)
+10. [Key Pointers Summary](#10-key-pointers-summary)
+11. [Assignment & Next Steps](#11-assignment--next-steps)
+
+---
+
+## 1. Project Overview & Features
+
+### What We're Building
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    EXPENSE TRACKER MCP SERVER                         │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │                    FEATURES                                     │  │
+│   │                                                                  │  │
+│   │  ✅ Add Expense    - Add new expense to database                │  │
+│   │  ✅ List Expenses  - View expenses with date filters           │  │
+│   │  ✅ Summarize      - Get totals by category and date range     │  │
+│   │  ✅ Category       - Enforce consistent categories via JSON    │  │
+│   │     Resource        resource                                    │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │                    DATA STORAGE                                 │  │
+│   │                                                                  │  │
+│   │  SQLite Database (expenses.db)                                  │  │
+│   │  ┌────────────────────────────────────────────────────────────┐ │  │
+│   │  │  Table: expenses                                           │ │  │
+│   │  │  ├── id         INTEGER PRIMARY KEY AUTOINCREMENT         │ │  │
+│   │  │  ├── date       TEXT                                       │ │  │
+│   │  │  ├── amount     REAL                                       │ │  │
+│   │  │  ├── category   TEXT                                       │ │  │
+│   │  │  ├── subcategory TEXT                                      │ │  │
+│   │  │  └── note       TEXT                                       │ │  │
+│   │  └────────────────────────────────────────────────────────────┘ │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │                    CATEGORY RESOURCE                            │  │
+│   │                                                                  │  │
+│   │  JSON file (categories.json)                                    │  │
+│   │  └── Enforces consistent category naming                        │  │
+│   │      ├── Education: [Books, Courses, Supplies]                 │  │
+│   │      ├── Transport: [Cab, Train, Flight, Bus, Fuel]           │  │
+│   │      ├── Grocery: [Vegetables, Fruits, Staples]               │  │
+│   │      └── ... (and many more)                                   │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 2. Database Setup
+
+### SQLite Database Initialization
+
+```python
+import sqlite3
+from datetime import datetime
+from mcp import FastMCP
+
+# Create MCP server instance
+mcp = FastMCP("Expense Tracker")
+
+# Database file path
+DB_PATH = "expenses.db"
+
+def init_db():
+    """Initialize the database and create the expenses table if it doesn't exist."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS expenses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL,
+            amount REAL NOT NULL,
+            category TEXT,
+            subcategory TEXT,
+            note TEXT
+        )
+    """)
+    
+    conn.commit()
+    conn.close()
+
+# Initialize database on server startup
+init_db()
+```
+
+### Database Schema
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | INTEGER | Auto-incrementing primary key |
+| `date` | TEXT | Date of the expense (YYYY-MM-DD) |
+| `amount` | REAL | Amount spent |
+| `category` | TEXT | Main category (e.g., Transport) |
+| `subcategory` | TEXT | Sub-category (e.g., Cab) |
+| `note` | TEXT | Additional description |
+
+### Why SQLite?
+
+| Reason | Explanation |
+|--------|-------------|
+| **No setup required** | File-based, no server installation |
+| **Portable** | Single file, easy to share |
+| **Lightweight** | Perfect for learning/demo |
+| **SQL standard** | Easy to replace with PostgreSQL/MySQL later |
+
+---
+
+## 3. Add Expense Tool
+
+### Code
+
+```python
+@mcp.tool()
+def add_expense(
+    date: str,
+    amount: float,
+    category: str,
+    subcategory: str = "",
+    note: str = ""
+) -> str:
+    """Add a new expense entry to the database.
+
+    Args:
+        date: The date of the expense in YYYY-MM-DD format
+        amount: The amount spent
+        category: The expense category
+        subcategory: Optional sub-category
+        note: Optional note about the expense
+
+    Returns:
+        A confirmation message
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            INSERT INTO expenses (date, amount, category, subcategory, note)
+            VALUES (?, ?, ?, ?, ?)
+        """, (date, amount, category, subcategory, note))
+        
+        conn.commit()
+        conn.close()
+        
+        return f"✅ Expense added: ₹{amount} on {date} in {category}"
+    
+    except Exception as e:
+        return f"❌ Error adding expense: {str(e)}"
+```
+
+### How It Works
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    ADD EXPENSE FLOW                                    │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   User Input:                                                           │
+│   "Add ₹500 travel expense for cab yesterday"                         │
+│                                                                         │
+│         │                                                               │
+│         ▼                                                               │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  LLM (Claude) parses the prompt:                               │  │
+│   │  ├── date: "2026-06-26" (yesterday)                           │  │
+│   │  ├── amount: 500.0                                             │  │
+│   │  ├── category: "Transport" (deduced)                           │  │
+│   │  ├── subcategory: "Cab"                                        │  │
+│   │  └── note: "Cab ride"                                          │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│         │                                                               │
+│         ▼                                                               │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  add_expense() tool called                                      │  │
+│   │  ├── Connects to SQLite database                               │  │
+│   │  ├── Inserts the expense                                       │  │
+│   │  └── Returns confirmation                                      │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│         │                                                               │
+│         ▼                                                               │
+│   Claude: "✅ Expense added: ₹500.0 on 2026-06-26 in Transport"       │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 4. List Expenses Tool (with Date Range)
+
+### First Version (No Filter)
+
+```python
+@mcp.tool()
+def list_expenses() -> str:
+    """List all expense entries from the database."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT id, date, amount, category, subcategory, note
+        FROM expenses
+        ORDER BY date ASC
+    """)
+    
+    rows = cursor.fetchall()
+    conn.close()
+    
+    if not rows:
+        return "No expenses found."
+    
+    result = "📊 All Expenses:\n\n"
+    for row in rows:
+        id, date, amount, category, subcategory, note = row
+        result += f"• {date}: ₹{amount} | {category}"
+        if subcategory:
+            result += f" → {subcategory}"
+        if note:
+            result += f" | {note}"
+        result += "\n"
+    
+    return result
+```
+
+### Improved Version (with Date Range)
+
+```python
+@mcp.tool()
+def list_expenses(
+    start_date: str,
+    end_date: str
+) -> str:
+    """List expenses within a given date range.
+
+    Args:
+        start_date: Start date in YYYY-MM-DD format
+        end_date: End date in YYYY-MM-DD format
+
+    Returns:
+        Formatted list of expenses in the date range
+    """
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT id, date, amount, category, subcategory, note
+        FROM expenses
+        WHERE date BETWEEN ? AND ?
+        ORDER BY date ASC
+    """, (start_date, end_date))
+    
+    rows = cursor.fetchall()
+    conn.close()
+    
+    if not rows:
+        return f"No expenses found between {start_date} and {end_date}."
+    
+    total = sum(row[2] for row in rows)
+    
+    result = f"📊 Expenses from {start_date} to {end_date}:\n\n"
+    result += f"Total: ₹{total}\n\n"
+    
+    for row in rows:
+        id, date, amount, category, subcategory, note = row
+        result += f"• {date}: ₹{amount} | {category}"
+        if subcategory:
+            result += f" → {subcategory}"
+        if note:
+            result += f" | {note}"
+        result += "\n"
+    
+    return result
+```
+
+### How Date Filter Works
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    LIST EXPENSES FLOW                                  │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   User Input:                                                           │
+│   "Show me all expenses from September first week"                    │
+│                                                                         │
+│         │                                                               │
+│         ▼                                                               │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  LLM deduces date range:                                        │  │
+│   │  ├── start_date: "2026-09-01"                                 │  │
+│   │  └── end_date: "2026-09-07"                                   │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│         │                                                               │
+│         ▼                                                               │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  list_expenses() tool called                                    │  │
+│   │  ├── WHERE date BETWEEN '2026-09-01' AND '2026-09-07'        │  │
+│   │  ├── Returns filtered expenses                                 │  │
+│   │  └── Includes total sum                                        │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│         │                                                               │
+│         ▼                                                               │
+│   Claude displays formatted list with total                           │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Example: Table Format
+
+```
+User: "List my expenses from last week in tabular manner"
+
+┌────────────┬──────────┬─────────────┬──────────────┬──────────────────┐
+│ Date       │ Amount   │ Category    │ Subcategory  │ Note             │
+├────────────┼──────────┼─────────────┼──────────────┼──────────────────┤
+│ 2026-09-01 │ ₹1,200   │ Transport   │ Cab          │ To office        │
+│ 2026-09-02 │ ₹450     │ Food        │ Restaurant   │ Lunch with team  │
+│ 2026-09-03 │ ₹850     │ Education   │ Books        │ ML textbook      │
+│ 2026-09-04 │ ₹1,000   │ Transport   │ Train        │ Weekend trip     │
+└────────────┴──────────┴─────────────┴──────────────┴──────────────────┘
+Total: ₹3,500
+```
+
+---
+
+## 5. Summarize Expenses Tool
+
+### Code
+
+```python
+@mcp.tool()
+def summarize_expenses(
+    start_date: str,
+    end_date: str,
+    category: str = None
+) -> str:
+    """Summarize expenses by category within a date range.
+
+    Args:
+        start_date: Start date in YYYY-MM-DD format
+        end_date: End date in YYYY-MM-DD format
+        category: Optional category to filter
+
+    Returns:
+        Summary of expenses by category
+    """
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    # Base query
+    query = """
+        SELECT category, SUM(amount) as total
+        FROM expenses
+        WHERE date BETWEEN ? AND ?
+    """
+    params = [start_date, end_date]
+    
+    # Add category filter if provided
+    if category:
+        query += " AND category = ?"
+        params.append(category)
+    
+    query += " GROUP BY category ORDER BY category ASC"
+    
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    conn.close()
+    
+    if not rows:
+        if category:
+            return f"No expenses found for '{category}' from {start_date} to {end_date}."
+        return f"No expenses found from {start_date} to {end_date}."
+    
+    total = sum(row[1] for row in rows)
+    
+    result = f"📊 Summary from {start_date} to {end_date}:\n\n"
+    result += f"Grand Total: ₹{total}\n\n"
+    
+    for category_name, amount in rows:
+        result += f"  {category_name}: ₹{amount}\n"
+    
+    return result
+```
+
+### How Summarize Works
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    SUMMARIZE FLOW                                      │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   User Input:                                                           │
+│   "Total expense on education in last 10 days"                        │
+│                                                                         │
+│         │                                                               │
+│         ▼                                                               │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  LLM deduces:                                                    │  │
+│   │  ├── start_date: "2026-06-18"                                 │  │
+│   │  ├── end_date: "2026-06-27"                                   │  │
+│   │  └── category: "Education"                                    │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│         │                                                               │
+│         ▼                                                               │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  summarize_expenses() tool called                               │  │
+│   │  ├── SQL: SELECT category, SUM(amount)                         │  │
+│   │  │       WHERE date BETWEEN ... AND category = 'Education'    │  │
+│   │  ├── Returns: Education: ₹1,800                                │  │
+│   │  └── Grand total: ₹1,800                                       │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│         │                                                               │
+│         ▼                                                               │
+│   Claude: "You spent ₹1,800 on Education in the last 10 days"         │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### SQL Query Logic
+
+```sql
+-- Without category (all categories)
+SELECT category, SUM(amount) as total
+FROM expenses
+WHERE date BETWEEN '2026-09-01' AND '2026-09-30'
+GROUP BY category
+ORDER BY category ASC;
+
+-- With category
+SELECT category, SUM(amount) as total
+FROM expenses
+WHERE date BETWEEN '2026-09-01' AND '2026-09-30'
+AND category = 'Education'
+GROUP BY category
+ORDER BY category ASC;
+```
+
+---
+
+## 6. Category Resource for Consistency
+
+### The Problem
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    THE PROBLEM - INCONSISTENT CATEGORIES              │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ❌ Without resource:                                                 │
+│                                                                         │
+│   Day 1: "Add expense: ₹500 for cab"                                  │
+│   → Claude writes category: "Transport"                               │
+│                                                                         │
+│   Day 2: "Add expense: ₹1000 for flight"                              │
+│   → Claude writes category: "Travel"                                  │
+│                                                                         │
+│   Day 3: "Add expense: ₹200 for bus"                                  │
+│   → Claude writes category: "transportation"                          │
+│                                                                         │
+│   Result: Three different categories for similar expenses!            │
+│   → Analytics becomes difficult                                       │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### The Solution: Category Resource
+
+```json
+{
+  "categories": {
+    "Education": {
+      "subcategories": ["Books", "Courses", "Supplies", "Online Courses"]
+    },
+    "Food": {
+      "subcategories": ["Groceries", "Restaurant", "Takeout", "Cafe"]
+    },
+    "Transport": {
+      "subcategories": ["Cab", "Train", "Flight", "Bus", "Fuel", "Parking"]
+    },
+    "Entertainment": {
+      "subcategories": ["Movies", "Concerts", "Games", "Subscriptions"]
+    },
+    "Health": {
+      "subcategories": ["Medicine", "Doctor", "Gym", "Fitness"]
+    },
+    "Shopping": {
+      "subcategories": ["Clothing", "Electronics", "Home", "Gifts"]
+    },
+    "Utilities": {
+      "subcategories": ["Electricity", "Water", "Gas", "Internet"]
+    },
+    "Rent": {
+      "subcategories": ["House Rent", "Office Rent"]
+    },
+    "Insurance": {
+      "subcategories": ["Health Insurance", "Vehicle Insurance", "Life Insurance"]
+    },
+    "Miscellaneous": {
+      "subcategories": ["Gifts", "Donation", "Other"]
+    }
+  }
+}
+```
+
+### Adding Resource to Server
+
+```python
+import json
+
+@mcp.resource("categories://list")
+def get_categories() -> str:
+    """Resource that provides valid categories and subcategories."""
+    with open("categories.json", "r") as f:
+        data = json.load(f)
+    return json.dumps(data, indent=2)
+```
+
+### How the Resource Works
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    CATEGORY RESOURCE FLOW                              │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   1. User clicks "Add from Expense Tracker → Categories"              │
+│                                                                         │
+│   2. Claude sends request for the resource                            │
+│                                                                         │
+│   3. Server returns categories.json content                            │
+│                                                                         │
+│   4. Claude now knows ALL valid categories and subcategories          │
+│                                                                         │
+│   5. User adds expense with consistent category                        │
+│                                                                         │
+│   User: "Add cab ride to airport for ₹700 last Wednesday"             │
+│         "Pick category from the pasted resource"                      │
+│                                                                         │
+│   ✅ Result: Category = "Transport", Subcategory = "Cab"              │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Visual: Resource in Claude Desktop
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    RESOURCE IN CLAUDE DESKTOP                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  Claude Desktop                                                 │  │
+│   │                                                                  │  │
+│   │  + Add from Expense Tracker   ← Click this                      │  │
+│   │    ├── Categories             ← Select this                     │  │
+│   │    └── [Other resources...]                                     │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│   Categories JSON content appears in the chat:                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  {                                                              │  │
+│   │    "categories": {                                              │  │
+│   │      "Transport": ["Cab", "Train", "Flight", ...],            │  │
+│   │      "Education": ["Books", "Courses", ...],                  │  │
+│   │      ...                                                       │  │
+│   │    }                                                            │  │
+│   │  }                                                              │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│   Now the LLM can use these exact categories!                         │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 7. Integration & Testing
+
+### Step 1: Add All Code to main.py
+
+```python
+# main.py - Complete Expense Tracker Server
+
+from mcp import FastMCP
+import sqlite3
+import json
+from datetime import datetime
+
+mcp = FastMCP("Expense Tracker")
+DB_PATH = "expenses.db"
+CATEGORIES_PATH = "categories.json"
+
+# ============ Database Setup ============
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS expenses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL,
+            amount REAL NOT NULL,
+            category TEXT,
+            subcategory TEXT,
+            note TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+init_db()
+
+# ============ Resource ============
+@mcp.resource("categories://list")
+def get_categories() -> str:
+    with open(CATEGORIES_PATH, "r") as f:
+        data = json.load(f)
+    return json.dumps(data, indent=2)
+
+# ============ Tools ============
+@mcp.tool()
+def add_expense(date: str, amount: float, category: str, 
+                subcategory: str = "", note: str = "") -> str:
+    """Add a new expense entry to the database."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO expenses (date, amount, category, subcategory, note)
+        VALUES (?, ?, ?, ?, ?)
+    """, (date, amount, category, subcategory, note))
+    conn.commit()
+    conn.close()
+    return f"✅ Expense added: ₹{amount} on {date} in {category}"
+
+@mcp.tool()
+def list_expenses(start_date: str, end_date: str) -> str:
+    """List expenses within a date range."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT date, amount, category, subcategory, note
+        FROM expenses
+        WHERE date BETWEEN ? AND ?
+        ORDER BY date ASC
+    """, (start_date, end_date))
+    rows = cursor.fetchall()
+    conn.close()
+    
+    if not rows:
+        return f"No expenses between {start_date} and {end_date}."
+    
+    total = sum(row[1] for row in rows)
+    result = f"📊 Expenses ({start_date} to {end_date}):\nTotal: ₹{total}\n\n"
+    for date, amount, category, subcategory, note in rows:
+        result += f"• {date}: ₹{amount} | {category}"
+        if subcategory:
+            result += f" → {subcategory}"
+        if note:
+            result += f" | {note}"
+        result += "\n"
+    return result
+
+@mcp.tool()
+def summarize_expenses(start_date: str, end_date: str, 
+                       category: str = None) -> str:
+    """Summarize expenses by category within a date range."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    query = """
+        SELECT category, SUM(amount) as total
+        FROM expenses
+        WHERE date BETWEEN ? AND ?
+    """
+    params = [start_date, end_date]
+    
+    if category:
+        query += " AND category = ?"
+        params.append(category)
+    
+    query += " GROUP BY category ORDER BY category ASC"
+    
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    conn.close()
+    
+    if not rows:
+        if category:
+            return f"No expenses for '{category}' from {start_date} to {end_date}."
+        return f"No expenses from {start_date} to {end_date}."
+    
+    total = sum(row[1] for row in rows)
+    result = f"📊 Summary ({start_date} to {end_date}):\n"
+    result += f"Grand Total: ₹{total}\n\n"
+    for category_name, amount in rows:
+        result += f"  {category_name}: ₹{amount}\n"
+    return result
+
+if __name__ == "__main__":
+    mcp.run()
+```
+
+### Step 2: Test with MCP Inspector
+
+```bash
+# Run the inspector
+uv run fastmcp dev main.py
+
+# Or
+mcp dev main.py
+```
+
+### Step 3: Install to Claude Desktop
+
+```bash
+uv run fastmcp install main.py --client claude-desktop
+```
+
+### Step 4: Fix Path Issue (if needed)
+
+```json
+{
+  "mcpServers": {
+    "expense-tracker": {
+      "command": "/Users/nitesh/.local/bin/uv",
+      "args": [
+        "run",
+        "--with",
+        "fastmcp",
+        "fastmcp",
+        "run",
+        "/Users/nitesh/Desktop/expense-tracker-mcp-server/main.py"
+      ]
+    }
+  }
+}
+```
+
+### Step 5: Restart Claude Desktop
+
+---
+
+## 8. Flow Diagrams
+
+### Diagram 1: Complete Server Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    EXPENSE TRACKER SERVER ARCHITECTURE                 │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │                    MCP Server (FastMCP)                        │  │
+│   │                                                                  │  │
+│   │   ┌─────────────┐  ┌─────────────┐  ┌─────────────┐           │  │
+│   │   │   Tools     │  │  Resources  │  │   Logic     │           │  │
+│   │   │             │  │             │  │             │           │  │
+│   │   │ add_expense │  │ categories  │  │ init_db()   │           │  │
+│   │   │ list_expense│  │             │  │             │           │  │
+│   │   │ summarize   │  │             │  │             │           │  │
+│   │   └──────┬──────┘  └──────┬──────┘  └──────┬──────┘           │  │
+│   │          │                │                │                  │  │
+│   │          └────────────────┼────────────────┘                  │  │
+│   │                           │                                    │  │
+│   └───────────────────────────┼────────────────────────────────────┘  │
+│                               │                                       │
+│                               ▼                                       │
+│   ┌───────────────────────────────────────────────────────────────┐   │
+│   │                    DATA LAYER                                 │   │
+│   │                                                               │   │
+│   │   ┌─────────────────┐    ┌──────────────────┐               │   │
+│   │   │  expenses.db    │    │ categories.json  │               │   │
+│   │   │  (SQLite)       │    │  (JSON resource) │               │   │
+│   │   └─────────────────┘    └──────────────────┘               │   │
+│   │                                                               │   │
+│   └───────────────────────────────────────────────────────────────┘   │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Diagram 2: Add Expense Flow (With Resource)
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    ADD EXPENSE WITH RESOURCE FLOW                      │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   USER                                                                  │
+│    │                                                                    │
+│    │  "Add cab ride to airport ₹700 last Wednesday"                    │
+│    │  "Pick category from the pasted resource"                         │
+│    ▼                                                                    │
+│   ┌──────────────────────────────────────────────────────────────────┐ │
+│   │                    CLAUDE DESKTOP (LLM)                          │ │
+│   │                                                                   │ │
+│   │  1. Reads the categories resource in context                     │ │
+│   │  2. Understands: "cab" → category="Transport", subcategory="Cab" │ │
+│   │  3. Understands: "last Wednesday" → date="2026-06-24"           │ │
+│   │  4. Calls add_expense() tool with correct parameters            │ │
+│   └────────────────────────┬─────────────────────────────────────────┘ │
+│                             │                                          │
+│                             ▼                                          │
+│   ┌──────────────────────────────────────────────────────────────────┐ │
+│   │                    EXPENSE TRACKER SERVER                        │ │
+│   │                                                                   │ │
+│   │  add_expense(date="2026-06-24", amount=700,                     │ │
+│   │               category="Transport", subcategory="Cab",           │ │
+│   │               note="Airport ride")                              │ │
+│   └────────────────────────┬─────────────────────────────────────────┘ │
+│                             │                                          │
+│                             ▼                                          │
+│   ┌──────────────────────────────────────────────────────────────────┐ │
+│   │                    DATABASE                                      │ │
+│   │                                                                   │ │
+│   │  INSERT INTO expenses VALUES (7, '2026-06-24', 700,             │ │
+│   │                               'Transport', 'Cab', 'Airport ride')│ │
+│   └────────────────────────┬─────────────────────────────────────────┘ │
+│                             │                                          │
+│                             ▼                                          │
+│   Claude: "✅ Expense added: ₹700 on 2026-06-24 in Transport"         │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Diagram 3: List Expenses with Date Range
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    LIST EXPENSES FLOW                                  │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   USER                                                                  │
+│    │                                                                    │
+│    │  "Show me all expenses from last week in tabular format"          │
+│    ▼                                                                    │
+│   ┌──────────────────────────────────────────────────────────────────┐ │
+│   │                    CLAUDE DESKTOP (LLM)                          │ │
+│   │                                                                   │ │
+│   │  1. Computes date range: start=2026-06-20, end=2026-06-27      │ │
+│   │  2. Calls list_expenses(start_date, end_date)                   │ │
+│   │  3. Receives data from server                                   │ │
+│   │  4. Formats as table and displays to user                      │ │
+│   └────────────────────────┬─────────────────────────────────────────┘ │
+│                             │                                          │
+│                             ▼                                          │
+│   ┌──────────────────────────────────────────────────────────────────┐ │
+│   │                    SERVER RESPONSE                               │ │
+│   │                                                                   │ │
+│   │  "📊 Expenses (2026-06-20 to 2026-06-27):                       │ │
+│   │   Total: ₹3,500                                                 │ │
+│   │                                                                   │ │
+│   │   • 2026-06-20: ₹1,200 | Transport → Cab | Office               │ │
+│   │   • 2026-06-21: ₹450 | Food → Restaurant | Lunch                │ │
+│   │   • 2026-06-22: ₹850 | Education → Books | ML textbook         │ │
+│   │   • 2026-06-23: ₹1,000 | Transport → Train | Weekend trip"    │ │
+│   └──────────────────────────────────────────────────────────────────┘ │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 9. Complete Code
+
+### categories.json
+
+```json
+{
+  "categories": {
+    "Education": {
+      "subcategories": ["Books", "Courses", "Online Courses", "Supplies"]
+    },
+    "Food": {
+      "subcategories": ["Groceries", "Restaurant", "Takeout", "Cafe", "Snacks"]
+    },
+    "Transport": {
+      "subcategories": ["Cab", "Train", "Flight", "Bus", "Fuel", "Parking", "Metro", "Auto"]
+    },
+    "Entertainment": {
+      "subcategories": ["Movies", "Concerts", "Games", "Subscriptions", "Events"]
+    },
+    "Health": {
+      "subcategories": ["Medicine", "Doctor", "Gym", "Fitness", "Hospital"]
+    },
+    "Shopping": {
+      "subcategories": ["Clothing", "Electronics", "Home", "Gifts", "Accessories"]
+    },
+    "Utilities": {
+      "subcategories": ["Electricity", "Water", "Gas", "Internet", "Phone"]
+    },
+    "Rent": {
+      "subcategories": ["House Rent", "Office Rent"]
+    },
+    "Insurance": {
+      "subcategories": ["Health Insurance", "Vehicle Insurance", "Life Insurance"]
+    },
+    "Miscellaneous": {
+      "subcategories": ["Gifts", "Donation", "Other", "Emergency"]
+    }
+  }
+}
+```
+
+### main.py (Complete)
+
+```python
+from mcp import FastMCP
+import sqlite3
+import json
+from datetime import datetime
+
+# Initialize MCP server
+mcp = FastMCP("Expense Tracker")
+
+# Database and file paths
+DB_PATH = "expenses.db"
+CATEGORIES_PATH = "categories.json"
+
+# ============ Database Setup ============
+def init_db():
+    """Initialize SQLite database with expenses table."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS expenses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL,
+            amount REAL NOT NULL,
+            category TEXT,
+            subcategory TEXT,
+            note TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+    print("✅ Database initialized")
+
+# Initialize database
+init_db()
+
+# ============ Resource ============
+@mcp.resource("categories://list")
+def get_categories() -> str:
+    """Resource providing valid categories and subcategories."""
+    try:
+        with open(CATEGORIES_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return json.dumps(data, indent=2, ensure_ascii=False)
+    except FileNotFoundError:
+        return json.dumps({"error": "categories.json not found"})
+
+# ============ Tools ============
+@mcp.tool()
+def add_expense(
+    date: str,
+    amount: float,
+    category: str,
+    subcategory: str = "",
+    note: str = ""
+) -> str:
+    """Add a new expense entry to the database.
+
+    Args:
+        date: Date in YYYY-MM-DD format
+        amount: Amount spent
+        category: Expense category (use categories from resource)
+        subcategory: Optional sub-category
+        note: Optional note/description
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO expenses (date, amount, category, subcategory, note)
+            VALUES (?, ?, ?, ?, ?)
+        """, (date, amount, category, subcategory, note))
+        conn.commit()
+        conn.close()
+        return f"✅ Expense added: ₹{amount:,.0f} on {date} in {category}"
+    except Exception as e:
+        return f"❌ Error: {str(e)}"
+
+@mcp.tool()
+def list_expenses(start_date: str, end_date: str) -> str:
+    """List all expenses within a date range.
+
+    Args:
+        start_date: Start date in YYYY-MM-DD format
+        end_date: End date in YYYY-MM-DD format
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT date, amount, category, subcategory, note
+            FROM expenses
+            WHERE date BETWEEN ? AND ?
+            ORDER BY date ASC
+        """, (start_date, end_date))
+        rows = cursor.fetchall()
+        conn.close()
+
+        if not rows:
+            return f"No expenses found from {start_date} to {end_date}."
+
+        total = sum(row[1] for row in rows)
+        
+        result = f"📊 Expenses ({start_date} to {end_date}):\n"
+        result += f"Total: ₹{total:,.0f}\n\n"
+        
+        for date, amount, category, subcategory, note in rows:
+            result += f"• {date}: ₹{amount:,.0f} | {category}"
+            if subcategory:
+                result += f" → {subcategory}"
+            if note:
+                result += f" | {note}"
+            result += "\n"
+        
+        return result
+    except Exception as e:
+        return f"❌ Error: {str(e)}"
+
+@mcp.tool()
+def summarize_expenses(
+    start_date: str,
+    end_date: str,
+    category: str = None
+) -> str:
+    """Summarize expenses by category within a date range.
+
+    Args:
+        start_date: Start date in YYYY-MM-DD format
+        end_date: End date in YYYY-MM-DD format
+        category: Optional category to filter
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        query = """
+            SELECT category, SUM(amount) as total
+            FROM expenses
+            WHERE date BETWEEN ? AND ?
+        """
+        params = [start_date, end_date]
+
+        if category:
+            query += " AND category = ?"
+            params.append(category)
+
+        query += " GROUP BY category ORDER BY category ASC"
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        conn.close()
+
+        if not rows:
+            if category:
+                return f"No expenses for '{category}' from {start_date} to {end_date}."
+            return f"No expenses found from {start_date} to {end_date}."
+
+        grand_total = sum(row[1] for row in rows)
+        
+        result = f"📊 Summary ({start_date} to {end_date}):\n"
+        result += f"Grand Total: ₹{grand_total:,.0f}\n\n"
+        
+        for category_name, amount in rows:
+            result += f"  {category_name}: ₹{amount:,.0f}\n"
+        
+        return result
+    except Exception as e:
+        return f"❌ Error: {str(e)}"
+
+# ============ Run Server ============
+if __name__ == "__main__":
+    print("🚀 Starting Expense Tracker MCP Server...")
+    mcp.run()
+```
+
+---
+
+## 10. Key Pointers Summary
+
+### Important Concepts
+
+| Concept | Explanation |
+|---------|-------------|
+| **Resources** | Provide data (like categories) to the LLM as context |
+| **Tools** | Functions the LLM can call to perform actions |
+| **SQLite** | File-based database for storing expenses |
+| **Category Resource** | JSON file that enforces consistent category naming |
+| **Date Range** | Filter expenses by start and end dates |
+| **Summarization** | Group and total expenses by category |
+
+### Best Practices
+
+| Practice | Why |
+|----------|-----|
+| **Use resources for static data** | Ensures consistency (like categories) |
+| **Add clear docstrings** | LLM uses them to understand tools |
+| **Use date filters** | More useful than listing all expenses |
+| **Provide totals** | Users want to know spending totals |
+| **Consistent categories** | Enables better analysis |
+
+### Common Issues & Solutions
+
+| Issue | Solution |
+|-------|----------|
+| **Inconsistent categories** | Use JSON resource to enforce |
+| **SQLite path issues** | Use absolute paths or relative to project |
+| **Category not recognized** | Make sure JSON resource is loaded |
+| **Date parsing errors** | Always use YYYY-MM-DD format |
+| **Server not updating** | Restart Claude Desktop after code changes |
+
+---
+
+## 11. Assignment & Next Steps
+
+### Assignment: Enhance the Expense Tracker
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    ASSIGNMENT TASKS                                    │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  ✅ Task 1: Add Delete Expense                                        │
+│     "Delete expense with ID 5"                                        │
+│     Tool: delete_expense(expense_id: int)                            │
+│                                                                         │
+│  ✅ Task 2: Add Edit/Update Expense                                   │
+│     "Update expense #3 amount to ₹500"                               │
+│     Tool: update_expense(id, **kwargs)                               │
+│                                                                         │
+│  ✅ Task 3: Add Income Support                                        │
+│     "Add ₹50,000 as salary for this month"                           │
+│     Tool: add_income(amount, date, source, note)                    │
+│                                                                         │
+│  ✅ Task 4: Add Monthly Budget                                        │
+│     "Set monthly budget for Food: ₹8,000"                            │
+│     Tool: set_budget(category, amount, month)                        │
+│                                                                         │
+│  ✅ Task 5: Add Spending Alerts                                       │
+│     "Notify me when I exceed 80% of budget"                          │
+│     Tool: check_budgets() (returns warnings)                         │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Example: Delete Expense Implementation
+
+```python
+@mcp.tool()
+def delete_expense(expense_id: int) -> str:
+    """Delete an expense by its ID.
+    
+    Args:
+        expense_id: The ID of the expense to delete
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))
+        if cursor.rowcount == 0:
+            return f"❌ No expense found with ID {expense_id}"
+        conn.commit()
+        conn.close()
+        return f"✅ Deleted expense with ID {expense_id}"
+    except Exception as e:
+        return f"❌ Error: {str(e)}"
+```
+
+### Example: Update Expense Implementation
+
+```python
+@mcp.tool()
+def update_expense(
+    expense_id: int,
+    date: str = None,
+    amount: float = None,
+    category: str = None,
+    subcategory: str = None,
+    note: str = None
+) -> str:
+    """Update an existing expense.
+    
+    Args:
+        expense_id: ID of the expense to update
+        date: New date (optional)
+        amount: New amount (optional)
+        category: New category (optional)
+        subcategory: New subcategory (optional)
+        note: New note (optional)
+    """
+    try:
+        updates = []
+        params = []
+        
+        if date is not None:
+            updates.append("date = ?")
+            params.append(date)
+        if amount is not None:
+            updates.append("amount = ?")
+            params.append(amount)
+        if category is not None:
+            updates.append("category = ?")
+            params.append(category)
+        if subcategory is not None:
+            updates.append("subcategory = ?")
+            params.append(subcategory)
+        if note is not None:
+            updates.append("note = ?")
+            params.append(note)
+        
+        if not updates:
+            return "No updates provided"
+        
+        params.append(expense_id)
+        query = f"UPDATE expenses SET {', '.join(updates)} WHERE id = ?"
+        
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute(query, params)
+        if cursor.rowcount == 0:
+            return f"❌ No expense found with ID {expense_id}"
+        conn.commit()
+        conn.close()
+        return f"✅ Updated expense with ID {expense_id}"
+    except Exception as e:
+        return f"❌ Error: {str(e)}"
+```
+
+### Next Steps After Assignment
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    NEXT STEPS                                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  1. ✅ Complete the assignment tasks                                   │
+│                                                                         │
+│  2. 🔄 Make the server remote                                          │
+│     • Host on cloud (Railway, Render, etc.)                          │
+│     • Use HTTP + SSE transport                                       │
+│     • Anyone can connect from anywhere                               │
+│                                                                         │
+│  3. 🔧 Build a custom client                                          │
+│     • Don't rely on Claude Desktop                                   │
+│     • Build your own MCP client                                      │
+│     • Full control over UI/UX                                        │
+│                                                                         │
+│  4. 🎨 Add visualization                                              │
+│     • Charts and graphs for spending                                │
+│     • Category-wise breakdown                                        │
+│     • Monthly trends                                                 │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Final Summary
+
+| Aspect | What We Built |
+|--------|---------------|
+| **Server** | Custom MCP Expense Tracker |
+| **Tools** | Add, List (with date filter), Summarize |
+| **Resources** | Categories JSON for consistency |
+| **Database** | SQLite (expenses.db) |
+| **Integration** | Claude Desktop via FastMCP |
+| **Status** | ✅ Fully functional local server |
+
+### Key Takeaways
+
+1. **FastMCP** makes building servers incredibly easy
+2. **Resources** provide context to the LLM
+3. **Tools** are just Python functions with decorators
+4. **SQLite** is perfect for local development
+5. **Categories resource** ensures data consistency
+6. **Date filters** make the tool more useful
+
+---
+
 ### Useful command for creating and running your own MCP Server
 
 - command to run mcp server - `uv run fastmcp main.py` 
 
-- command to run mcp server and mcp inspector (recommended) `uv run fastmcp dev inspector main.py`
+- command to run mcp server with mcp inspector (recommended) `uv run fastmcp dev inspector main.py`
 
 - command to install your mcp server in claude desktop - `uv run fastmcp install claude-desktop main.py`
 
-summaries this MCP tutorial transcript in simple words with all detail along with flow diagrams, also make note of all important pointers and explain each important concepts with basic code examples
+---
+
+summaries this MCP tutorial transcript in simple words with all detail also make note of all important pointers and explain each important concepts with basic code examples

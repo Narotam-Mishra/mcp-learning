@@ -1,6 +1,4 @@
 
-# create your own mcp server
-
 from fastmcp import FastMCP
 import os
 import sqlite3
@@ -81,7 +79,7 @@ def summarize(start_date, end_date, category=None):
 
 @mcp.resource("expense://categories", mime_type="application/json")
 def categories():
-    # read fresh data each time so we can edit the file without restarting
+    # read fresh each time so we can edit the file without restarting
     with open(CATEGORIES_PATH,  "r", encoding="utf-8") as f:
         return f.read()
 
