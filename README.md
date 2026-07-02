@@ -10779,6 +10779,8 @@ uv add aiosqlite
 
 ---
 
-## 08. How to build MCP Clients  (39:59)
+## 08. How to build MCP Clients (39:59)
+
+- [Langchain MCP Adapters](https://github.com/langchain-ai/langchain-mcp-adapters)
 
 summaries this MCP tutorial transcript in simple words with all detail also make note of all important pointers and explain each important concepts with basic code examples
