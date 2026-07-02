@@ -9789,6 +9789,996 @@ mcp = FastMCP.from_fastapi(app)
 
 ## 07. How to Build & Deploy Remote MCP Servers (45:48)
 
+This tutorials covers the **complete implementation** of Remote MCP Servers, including:
+- Building a simple remote test server
+- Deploying to FastMCP Cloud
+- Converting Expense Tracker to remote
+- Fixing common issues (read-only DB, async)
+- Proxy server workaround for free plan users
+- Authentication and multi-tenancy challenges
+
+---
+
+## 📖 Table of Contents
+1. [Local vs Remote Servers](#1-local-vs-remote-servers)
+2. [Building a Simple Remote Server](#2-building-a-simple-remote-server)
+3. [Deploying to FastMCP Cloud](#3-deploying-to-fastmcp-cloud)
+4. [Converting Expense Tracker to Remote](#4-converting-expense-tracker-to-remote)
+5. [Fixing Read-Only Database Issue](#5-fixing-read-only-database-issue)
+6. [Making the Server Asynchronous](#6-making-the-server-asynchronous)
+7. [Proxy Server Workaround (Free Plan)](#7-proxy-server-workaround-free-plan)
+8. [Authentication & Multi-Tenancy Challenge](#8-authentication--multi-tenancy-challenge)
+9. [Flow Diagrams](#9-flow-diagrams)
+10. [Complete Code Examples](#10-complete-code-examples)
+
+---
+
+## 1. Local vs Remote Servers
+
+### Comparison Table
+
+| Aspect | Local Server | Remote Server |
+|--------|--------------|---------------|
+| **Location** | Same machine as client | Different machine (internet) |
+| **Transport** | stdio (Standard I/O) | HTTP + SSE |
+| **Speed** | Fast (no network latency) | Slower (network latency) |
+| **Concurrent Users** | Single user (local) | Multiple users (shared) |
+| **Access** | Only you (localhost) | Anyone with the URL |
+| **Use Case** | Personal tools, development | Enterprise, team sharing |
+| **Authentication** | Not needed | Required for multi-tenancy |
+
+### Why Remote Servers Matter
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    REMOTE SERVER BENEFITS                              │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ✅ Serve multiple clients simultaneously                            │
+│   ✅ More powerful hardware (cloud servers)                           │
+│   ✅ Share with team/colleagues                                       │
+│   ✅ Access from anywhere                                             │
+│   ✅ Enterprise-grade deployments                                     │
+│                                                                         │
+│   ⚠️ Trade-off: Slower than local (network overhead)                  │
+│   ⚠️ Need authentication for multi-user                              │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 2. Building a Simple Remote Server
+
+### Key Difference: Transport Layer
+
+The **ONLY change** needed to make a remote server:
+
+```python
+# Local Server (stdio)
+if __name__ == "__main__":
+    mcp.run()
+
+# Remote Server (HTTP + SSE)
+if __name__ == "__main__":
+    mcp.run(transport="sse", host="0.0.0.0", port=8000)
+```
+
+### Complete Simple Remote Server Code
+
+```python
+# main.py
+from mcp import FastMCP
+import random
+
+mcp = FastMCP("Simple Calculator Server")
+
+@mcp.tool()
+def add_numbers(a: float, b: float) -> float:
+    """Add two numbers together."""
+    return a + b
+
+@mcp.tool()
+def generate_random(min_val: int = 0, max_val: int = 100) -> int:
+    """Generate a random number within a range."""
+    return random.randint(min_val, max_val)
+
+@mcp.resource("server://info")
+def get_server_info() -> str:
+    """Get information about the server."""
+    return "This is a simple remote MCP calculator server!"
+
+if __name__ == "__main__":
+    # 🔑 The key difference - HTTP transport
+    mcp.run(transport="sse", host="0.0.0.0", port=8000)
+```
+
+### Running the Server
+
+```bash
+# Method 1: Direct run
+uv run main.py
+
+# Method 2: Using fastmcp command
+uv run fastmcp run main.py --transport sse --host 0.0.0.0 --port 8000
+```
+
+### Testing with MCP Inspector
+
+```bash
+uv run fastmcp dev main.py
+# Transport: Select "Streamable HTTP"
+# Host: localhost, Port: 8000
+```
+
+---
+
+## 3. Deploying to FastMCP Cloud
+
+### Step-by-Step Deployment
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    DEPLOYMENT FLOW                                     │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   1. Create GitHub Repository                                          │
+│      └── Push your MCP server code                                     │
+│                                                                         │
+│   2. Go to fastmcp.cloud                                               │
+│      └── Create an account                                             │
+│                                                                         │
+│   3. Connect GitHub                                                    │
+│      └── Authorize FastMCP Cloud to access repos                      │
+│                                                                         │
+│   4. Select Repository                                                 │
+│      └── Choose your GitHub repo                                       │
+│                                                                         │
+│   5. Configure Deployment                                              │
+│      ├── Entry point: main.py                                         │
+│      ├── Auth: None (or add if needed)                               │
+│      └── Discoverable: Yes/No                                         │
+│                                                                         │
+│   6. Click Deploy                                                      │
+│      └── FastMCP Cloud builds and hosts your server                   │
+│                                                                         │
+│   7. Get URL                                                           │
+│      └── Share with anyone!                                           │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Git Commands for Deployment
+
+```bash
+# Initialize repo
+git init
+
+# Add files
+git add .
+git commit -m "Initial commit"
+
+# Add remote
+git remote add origin https://github.com/username/repo-name.git
+
+# Push
+git push -u origin main
+```
+
+### FastMCP Cloud Dashboard
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    FAST MCP CLOUD DASHBOARD                            │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   🚀 Deploy from your own code                                        │
+│                                                                         │
+│   Select GitHub Repository:                                            │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  ○ test-remote-mcp-server                                      │  │
+│   │  ○ expense-tracker                                             │  │
+│   │  ○ my-other-server                                             │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│   Settings:                                                            │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  Name: my-expense-tracker                                      │  │
+│   │  Entry Point: main.py                                          │  │
+│   │  Auth: None                                                    │  │
+│   │  Discoverable: Yes                                             │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│   [DEPLOY]                                                             │
+│                                                                         │
+│   Deployed URL: https://fastmcp.cloud/xxxxx                          │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 4. Converting Expense Tracker to Remote
+
+### The Simple Approach
+
+```python
+# Take your existing Expense Tracker code
+# Add the HTTP transport configuration
+
+if __name__ == "__main__":
+    mcp.run(transport="sse", host="0.0.0.0", port=8000)
+```
+
+### Directory Structure
+
+```
+expense-tracker-remote/
+├── main.py          ← Your Expense Tracker code
+├── categories.json  ← Category definitions
+├── expenses.db      ← SQLite database (will be created)
+└── pyproject.toml   ← Dependencies
+```
+
+### Code Modification
+
+```python
+# Existing code from local version + this at the end:
+
+if __name__ == "__main__":
+    # Local: mcp.run()
+    # Remote: mcp.run(transport="sse", host="0.0.0.0", port=8000)
+    mcp.run(transport="sse", host="0.0.0.0", port=8000)
+```
+
+---
+
+## 5. Fixing Read-Only Database Issue
+
+### The Problem
+
+When deploying SQLite on a cloud server, the database file may be in **read-only mode**, preventing write operations.
+
+### Solution: AIOSQLite
+
+```python
+# Before (sync SQLite)
+import sqlite3
+
+conn = sqlite3.connect("expenses.db")
+cursor = conn.cursor()
+cursor.execute("INSERT INTO ...")
+conn.commit()
+conn.close()
+
+# After (async SQLite - works on cloud)
+import aiosqlite
+import os
+
+DB_PATH = os.path.join(os.path.dirname(__file__), "expenses.db")
+
+async def init_db():
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS expenses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL,
+                amount REAL NOT NULL,
+                category TEXT,
+                subcategory TEXT,
+                note TEXT
+            )
+        """)
+        await db.commit()
+```
+
+### Complete Async Setup
+
+```python
+import os
+import json
+import aiosqlite
+from mcp import FastMCP
+
+mcp = FastMCP("Expense Tracker")
+DB_PATH = os.path.join(os.path.dirname(__file__), "expenses.db")
+
+# ============ Initialize Database ============
+@mcp.resource("db://init")
+async def init_db() -> str:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS expenses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL,
+                amount REAL NOT NULL,
+                category TEXT,
+                subcategory TEXT,
+                note TEXT
+            )
+        """)
+        await db.commit()
+    return "Database initialized"
+
+# ============ Async Tool ============
+@mcp.tool()
+async def add_expense(date: str, amount: float, category: str, 
+                      subcategory: str = "", note: str = "") -> str:
+    """Add a new expense entry to the database."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("""
+            INSERT INTO expenses (date, amount, category, subcategory, note)
+            VALUES (?, ?, ?, ?, ?)
+        """, (date, amount, category, subcategory, note))
+        await db.commit()
+    return f"✅ Expense added: ₹{amount} on {date} in {category}"
+
+@mcp.tool()
+async def list_expenses(start_date: str, end_date: str) -> str:
+    """List expenses within a date range."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("""
+            SELECT date, amount, category, subcategory, note
+            FROM expenses
+            WHERE date BETWEEN ? AND ?
+            ORDER BY date ASC
+        """, (start_date, end_date))
+        rows = await cursor.fetchall()
+    
+    if not rows:
+        return f"No expenses from {start_date} to {end_date}."
+    
+    total = sum(row[1] for row in rows)
+    result = f"📊 Expenses ({start_date} to {end_date}):\n"
+    result += f"Total: ₹{total}\n\n"
+    for date, amount, category, subcategory, note in rows:
+        result += f"• {date}: ₹{amount} | {category}"
+        if subcategory:
+            result += f" → {subcategory}"
+        if note:
+            result += f" | {note}"
+        result += "\n"
+    return result
+
+@mcp.tool()
+async def summarize_expenses(start_date: str, end_date: str, 
+                              category: str = None) -> str:
+    """Summarize expenses by category within a date range."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        query = """
+            SELECT category, SUM(amount) as total
+            FROM expenses
+            WHERE date BETWEEN ? AND ?
+        """
+        params = [start_date, end_date]
+        
+        if category:
+            query += " AND category = ?"
+            params.append(category)
+        
+        query += " GROUP BY category ORDER BY category ASC"
+        
+        cursor = await db.execute(query, params)
+        rows = await cursor.fetchall()
+    
+    if not rows:
+        if category:
+            return f"No expenses for '{category}' from {start_date} to {end_date}."
+        return f"No expenses from {start_date} to {end_date}."
+    
+    grand_total = sum(row[1] for row in rows)
+    result = f"📊 Summary ({start_date} to {end_date}):\n"
+    result += f"Grand Total: ₹{grand_total}\n\n"
+    for category_name, amount in rows:
+        result += f"  {category_name}: ₹{amount}\n"
+    return result
+
+if __name__ == "__main__":
+    # Remote with async support
+    mcp.run(transport="sse", host="0.0.0.0", port=8000)
+```
+
+### Installation
+
+```bash
+# Add async SQLite dependency
+uv add aiosqlite
+
+# Deploy (same steps as before)
+git add .
+git commit -m "Added async support"
+git push origin main
+```
+
+---
+
+## 6. Making the Server Asynchronous
+
+### Why Async Matters
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    SYNC VS ASYNC BEHAVIOR                              │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   SYNC (Blocking) - BEFORE                                            │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  User 1: Add expense → Database busy → Blocked                 │  │
+│   │  User 2: Wait...                                 │  │
+│   │  User 3: Wait...                                 │  │
+│   │  User 1: Done ✅                                                  │  │
+│   │  User 2: Now processing...                                      │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│   ASYNC (Non-blocking) - AFTER                                        │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  User 1: Add expense → I/O operation (background)               │  │
+│   │  User 2: List expenses → Processing...                         │  │
+│   │  User 3: Get summary → Processing...                          │  │
+│   │  User 1: Done ✅                                                  │  │
+│   │  User 2: Done ✅                                                  │  │
+│   │  User 3: Done ✅                                                  │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Key Async Changes
+
+| Aspect | Sync (Before) | Async (After) |
+|--------|---------------|---------------|
+| **Database** | `sqlite3` | `aiosqlite` |
+| **Connection** | `conn = sqlite3.connect()` | `async with aiosqlite.connect()` |
+| **Query** | `cursor.execute()` | `await db.execute()` |
+| **Function** | `def function():` | `async def function():` |
+| **Tool Decorator** | `@mcp.tool()` | `@mcp.tool()` (same!) |
+
+---
+
+## 7. Proxy Server Workaround (Free Plan)
+
+### The Problem
+
+The "Add Custom Connector" feature is **only available for Pro plan users** on Claude Desktop.
+
+### The Solution: Proxy Server
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    PROXY SERVER ARCHITECTURE                           │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ┌─────────────────┐         ┌─────────────────┐      ┌─────────────┐ │
+│   │  Claude Desktop │◀───────▶│  Proxy Server   │◀────▶│   Remote    │ │
+│   │  (Local)        │  stdio  │  (Local)        │ HTTP  │   Server    │ │
+│   └─────────────────┘         └─────────────────┘      └─────────────┘ │
+│                                                                         │
+│   • Proxy runs on your machine (local server)                         │
+│   • Claude connects to proxy via stdio (free plan allowed)           │
+│   • Proxy forwards requests to remote server over HTTP               │
+│   • Works on FREE plan!                                              │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Proxy Server Code
+
+```python
+# proxy_server.py
+from mcp import FastMCP
+
+# Create a proxy that forwards to your remote server
+mcp = FastMCP("Proxy Server", 
+              proxy="https://fastmcp.cloud/your-server-id")
+
+if __name__ == "__main__":
+    # This is a local server (stdio)
+    mcp.run()
+```
+
+### Alternative: Using FastMCP's Built-in Proxy
+
+```python
+# proxy_server.py
+from mcp import FastMCP
+
+# One-line proxy creation
+mcp = FastMCP.as_proxy(
+    name="My Server Proxy",
+    remote_url="https://fastmcp.cloud/your-server-id"
+)
+
+if __name__ == "__main__":
+    mcp.run()
+```
+
+### Installing the Proxy Server
+
+```bash
+# Install to Claude Desktop (works on free plan!)
+uv run fastmcp install proxy_server.py --client claude-desktop
+
+# Fix path issue (replace "uv" with full path)
+# Then restart Claude Desktop
+```
+
+### Complete Proxy Setup
+
+```bash
+# Step 1: Create a new folder
+mkdir proxy-server
+cd proxy-server
+
+# Step 2: Initialize
+uv init .
+uv add fastmcp
+
+# Step 3: Create proxy_server.py with code above
+
+# Step 4: Install to Claude
+uv run fastmcp install proxy_server.py --client claude-desktop
+
+# Step 5: Fix the path in config
+# Replace "uv" with full path from: which uv
+
+# Step 6: Restart Claude Desktop
+
+# ✅ You now have remote server access on FREE plan!
+```
+
+---
+
+## 8. Authentication & Multi-Tenancy Challenge
+
+### The Problem
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    MULTI-TENANCY PROBLEM                               │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ❌ Current State: All users share ONE database                       │
+│                                                                         │
+│   User A (India)                                                        │
+│   └── "Add ₹500 for cab" → Database stores: ₹500                     │
+│                                                                         │
+│   User B (USA)                                                         │
+│   └── "Show my expenses" → Shows User A's expenses! ❌                │
+│                                                                         │
+│   Problem: No user_id column, no authentication                       │
+│                                                                         │
+│   Need:                                                                 │
+│   ✅ Add user_id column                                                │
+│   ✅ Add authentication (OAuth, API keys, etc.)                       │
+│   ✅ Each user sees only their own data                               │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### What's Missing
+
+| Component | Current State | Needed |
+|-----------|---------------|--------|
+| **User ID** | Not in database | Add `user_id` column |
+| **Authentication** | None | OAuth, API Keys, etc. |
+| **Authorization** | None | Filter by user_id |
+| **Multi-tenancy** | Not supported | Full support |
+
+### Conceptual Fix
+
+```python
+# Add user_id to database
+CREATE TABLE expenses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,  -- NEW!
+    date TEXT NOT NULL,
+    amount REAL NOT NULL,
+    category TEXT,
+    subcategory TEXT,
+    note TEXT
+)
+
+# Every query must include user_id filter
+SELECT * FROM expenses 
+WHERE user_id = ? AND date BETWEEN ? AND ?
+
+# Authentication needed before any operation
+# Get user_id from authenticated request
+```
+
+### Why This is Important
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    PRODUCTION REQUIREMENTS                              │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ✅ For local/personal use:                                           │
+│      • No authentication needed                                       │
+│      • Single user                                                    │
+│                                                                         │
+│   ⚠️ For remote/team use:                                             │
+│      • NEED authentication                                            │
+│      • NEED user_id column                                            │
+│      • NEED data isolation between users                              │
+│                                                                         │
+│   🔜 Next Steps (Advanced MCP):                                       │
+│      • Sampling                                                       │
+│      • Elicitation                                                    │
+│      • Authentication                                                 │
+│      • Building custom MCP clients                                    │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 9. Flow Diagrams
+
+### Diagram 1: Local vs Remote Server Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    LOCAL VS REMOTE ARCHITECTURE                        │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   LOCAL SERVER                                                          │
+│   ┌───────────────────────────────────────────────────────────────┐    │
+│   │                    YOUR MACHINE                               │    │
+│   │                                                               │    │
+│   │   ┌─────────────┐       ┌─────────────┐                    │    │
+│   │   │   Claude    │  stdio │    MCP      │                    │    │
+│   │   │  Desktop    │◀──────▶│   Server    │                    │    │
+│   │   └─────────────┘       └─────────────┘                    │    │
+│   │                                                               │    │
+│   └───────────────────────────────────────────────────────────────┘    │
+│                                                                         │
+│   REMOTE SERVER                                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │                   YOUR MACHINE                 CLOUD           │  │
+│   │   ┌─────────────┐    ┌──────────────────────────────────────┐ │  │
+│   │   │   Claude    │    │  MCP Server (FastMCP Cloud)          │ │  │
+│   │   │  Desktop    │────│  ┌────────────────────────────────┐ │ │  │
+│   │   └─────────────┘    │  │  Expense Tracker Tools        │ │ │  │
+│   │                     │  │  • add_expense()              │ │ │  │
+│   │                     │  │  • list_expenses()            │ │ │  │
+│   │                     │  │  • summarize_expenses()       │ │ │  │
+│   │                     │  └────────────────────────────────┘ │ │  │
+│   │                     │  ┌────────────────────────────────┐ │ │  │
+│   │                     │  │  SQLite Database (cloud)      │ │ │  │
+│   │                     │  └────────────────────────────────┘ │ │  │
+│   │                     └──────────────────────────────────────┘ │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Diagram 2: Deployment Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    DEPLOYMENT FLOW                                      │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  Step 1: Write Code                                            │  │
+│   │  ┌────────────────────────────────────────────────────────────┐ │  │
+│   │  │  main.py - MCP Server with HTTP transport                 │ │  │
+│   │  │  categories.json - Category definitions                   │ │  │
+│   │  │  pyproject.toml - Dependencies                            │ │  │
+│   │  └────────────────────────────────────────────────────────────┘ │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  Step 2: Push to GitHub                                       │  │
+│   │  ┌────────────────────────────────────────────────────────────┐ │  │
+│   │  │  git init                                                  │ │  │
+│   │  │  git add .                                                 │ │  │
+│   │  │  git commit -m "Initial commit"                           │ │  │
+│   │  │  git push origin main                                     │ │  │
+│   │  └────────────────────────────────────────────────────────────┘ │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  Step 3: Deploy on FastMCP Cloud                              │  │
+│   │  ┌────────────────────────────────────────────────────────────┐ │  │
+│   │  │  1. Go to fastmcp.cloud                                   │ │  │
+│   │  │  2. Connect GitHub                                        │ │  │
+│   │  │  3. Select repository                                     │ │  │
+│   │  │  4. Configure (entry point, auth, etc.)                  │ │  │
+│   │  │  5. Click Deploy                                          │ │  │
+│   │  │  6. Get URL: https://fastmcp.cloud/xxxxx                 │ │  │
+│   │  └────────────────────────────────────────────────────────────┘ │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                              │                                         │
+│                              ▼                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  Step 4: Connect to Claude Desktop                            │  │
+│   │  ┌────────────────────────────────────────────────────────────┐ │  │
+│   │  │  Pro Plan: Add Custom Connector with URL                  │ │  │
+│   │  │  Free Plan: Create Proxy Server (see below)               │ │  │
+│   │  └────────────────────────────────────────────────────────────┘ │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Diagram 3: Proxy Server Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    PROXY SERVER ARCHITECTURE                           │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  Free Plan User's Machine                                      │  │
+│   │                                                                  │  │
+│   │   ┌─────────────┐     stdio      ┌─────────────────────────┐  │  │
+│   │   │   Claude    │◀──────────────▶│   Proxy Server          │  │  │
+│   │   │  Desktop    │                │   (Local MCP Server)    │  │  │
+│   │   └─────────────┘                └────────────┬────────────┘  │  │
+│   │                                               │                 │  │
+│   └───────────────────────────────────────────────┼─────────────────┘  │
+│                                                   │                    │
+│                                                   │ HTTP + SSE        │
+│                                                   │                    │
+│                                                   ▼                    │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  FastMCP Cloud                                                │  │
+│   │                                                                  │  │
+│   │   ┌─────────────────────────────────────────────────────────┐  │  │
+│   │   │  Remote MCP Server                                      │  │  │
+│   │   │  ┌────────────────────────────────────────────────────┐ │  │  │
+│   │   │  │  add_expense()                                     │ │  │  │
+│   │   │  │  list_expenses()                                   │ │  │  │
+│   │   │  │  summarize_expenses()                              │ │  │  │
+│   │   │  └────────────────────────────────────────────────────┘ │  │  │
+│   │   │  ┌────────────────────────────────────────────────────┐ │  │  │
+│   │   │  │  SQLite Database (cloud)                          │ │  │  │
+│   │   │  └────────────────────────────────────────────────────┘ │  │  │
+│   │   └─────────────────────────────────────────────────────────┘  │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│   ✅ Works on FREE plan!                                              │
+│   ⚠️ Slightly slower (double hop)                                     │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 10. Complete Code Examples
+
+### Example 1: Simple Remote Server (main.py)
+
+```python
+from mcp import FastMCP
+import random
+
+mcp = FastMCP("Simple Remote Server")
+
+@mcp.tool()
+def add_numbers(a: float, b: float) -> float:
+    """Add two numbers together."""
+    return a + b
+
+@mcp.tool()
+def random_number(min_val: int = 0, max_val: int = 100) -> int:
+    """Generate a random number."""
+    return random.randint(min_val, max_val)
+
+@mcp.resource("server://info")
+def get_info() -> str:
+    return "Simple remote MCP server running on FastMCP Cloud!"
+
+if __name__ == "__main__":
+    # HTTP transport for remote access
+    mcp.run(transport="sse", host="0.0.0.0", port=8000)
+```
+
+### Example 2: Async Expense Tracker (main.py)
+
+```python
+from mcp import FastMCP
+import aiosqlite
+import json
+import os
+
+mcp = FastMCP("Expense Tracker")
+DB_PATH = os.path.join(os.path.dirname(__file__), "expenses.db")
+CATEGORIES_PATH = os.path.join(os.path.dirname(__file__), "categories.json")
+
+# ============ Resource ============
+@mcp.resource("categories://list")
+async def get_categories() -> str:
+    with open(CATEGORIES_PATH, "r") as f:
+        return json.dumps(json.load(f), indent=2)
+
+# ============ Tools ============
+@mcp.tool()
+async def add_expense(date: str, amount: float, category: str,
+                      subcategory: str = "", note: str = "") -> str:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("""
+            INSERT INTO expenses (date, amount, category, subcategory, note)
+            VALUES (?, ?, ?, ?, ?)
+        """, (date, amount, category, subcategory, note))
+        await db.commit()
+    return f"✅ Expense added: ₹{amount} on {date} in {category}"
+
+@mcp.tool()
+async def list_expenses(start_date: str, end_date: str) -> str:
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("""
+            SELECT date, amount, category, subcategory, note
+            FROM expenses
+            WHERE date BETWEEN ? AND ?
+            ORDER BY date ASC
+        """, (start_date, end_date))
+        rows = await cursor.fetchall()
+    
+    if not rows:
+        return f"No expenses from {start_date} to {end_date}."
+    
+    total = sum(row[1] for row in rows)
+    result = f"📊 Expenses ({start_date} to {end_date}):\n"
+    result += f"Total: ₹{total:,.0f}\n\n"
+    for date, amount, category, subcategory, note in rows:
+        result += f"• {date}: ₹{amount:,.0f} | {category}"
+        if subcategory:
+            result += f" → {subcategory}"
+        if note:
+            result += f" | {note}"
+        result += "\n"
+    return result
+
+@mcp.tool()
+async def summarize_expenses(start_date: str, end_date: str,
+                              category: str = None) -> str:
+    async with aiosqlite.connect(DB_PATH) as db:
+        query = """
+            SELECT category, SUM(amount) as total
+            FROM expenses
+            WHERE date BETWEEN ? AND ?
+        """
+        params = [start_date, end_date]
+        
+        if category:
+            query += " AND category = ?"
+            params.append(category)
+        
+        query += " GROUP BY category ORDER BY category ASC"
+        
+        cursor = await db.execute(query, params)
+        rows = await cursor.fetchall()
+    
+    if not rows:
+        if category:
+            return f"No expenses for '{category}' from {start_date} to {end_date}."
+        return f"No expenses from {start_date} to {end_date}."
+    
+    grand_total = sum(row[1] for row in rows)
+    result = f"📊 Summary ({start_date} to {end_date}):\n"
+    result += f"Grand Total: ₹{grand_total:,.0f}\n\n"
+    for category_name, amount in rows:
+        result += f"  {category_name}: ₹{amount:,.0f}\n"
+    return result
+
+if __name__ == "__main__":
+    # Initialize database
+    import asyncio
+    async def init():
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS expenses (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    date TEXT NOT NULL,
+                    amount REAL NOT NULL,
+                    category TEXT,
+                    subcategory TEXT,
+                    note TEXT
+                )
+            """)
+            await db.commit()
+    asyncio.run(init())
+    
+    # Run remote server
+    mcp.run(transport="sse", host="0.0.0.0", port=8000)
+```
+
+### Example 3: Proxy Server (proxy_server.py)
+
+```python
+from mcp import FastMCP
+
+# Option 1: Using as_proxy method
+mcp = FastMCP.as_proxy(
+    name="My Remote Server Proxy",
+    remote_url="https://fastmcp.cloud/your-server-id-here"
+)
+
+if __name__ == "__main__":
+    # Local server (stdio) - works on free plan!
+    mcp.run()
+```
+
+### Example 4: Pyproject.toml (Dependencies)
+
+```toml
+[project]
+name = "expense-tracker-remote"
+version = "0.1.0"
+dependencies = [
+    "fastmcp>=2.0.0",
+    "aiosqlite>=0.19.0",
+]
+```
+
+---
+
+## Key Pointers Summary
+
+### Important Concepts
+
+| Concept | Explanation |
+|---------|-------------|
+| **Remote Server** | MCP server running on a different machine (cloud) |
+| **HTTP Transport** | `transport="sse"` instead of default stdio |
+| **FastMCP Cloud** | Free deployment service for MCP servers |
+| **Async Support** | Use `aiosqlite` and `async def` for concurrent users |
+| **Proxy Server** | Local server that forwards to remote (free plan workaround) |
+| **Multi-tenancy** | Need user_id + authentication for team usage |
+
+### Commands Reference
+
+```bash
+# Run local server
+uv run main.py
+
+# Run remote server (HTTP)
+uv run main.py  # with mcp.run(transport="sse", host="0.0.0.0", port=8000)
+
+# Test with Inspector
+uv run fastmcp dev main.py
+
+# Install to Claude Desktop
+uv run fastmcp install main.py --client claude-desktop
+
+# Add async SQLite
+uv add aiosqlite
+```
+
+### Common Issues & Solutions
+
+| Issue | Solution |
+|-------|----------|
+| **Read-only database** | Use `aiosqlite` instead of `sqlite3` |
+| **Server not loading** | Replace "uv" with full path in config |
+| **Pro plan required** | Use proxy server workaround |
+| **Multiple users see each other's data** | Add user_id + authentication (advanced) |
+| **Slow performance** | Async support helps with concurrency |
+
+---
+
+## Summary
+
+| Aspect | Achievement |
+|--------|-------------|
+| **Remote Server** | ✅ Successfully created and deployed |
+| **Deployment** | ✅ FastMCP Cloud |
+| **Async Support** | ✅ Concurrent users supported |
+| **Proxy Workaround** | ✅ Works on free plan |
+| **Remaining** | Authentication & multi-tenancy (advanced) |
+
+
+### Useful Commands
+
 - command to run remote mcp server - `uv run main.py`
+
+---
+
+## 08. How to build MCP Clients  (39:59)
 
 summaries this MCP tutorial transcript in simple words with all detail also make note of all important pointers and explain each important concepts with basic code examples
